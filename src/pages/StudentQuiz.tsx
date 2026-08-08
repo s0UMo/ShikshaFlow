@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   CheckCircle2, XCircle, ArrowRight, ArrowLeft,
-  Sparkles, Trophy, Clock, BrainCircuit, Flame, Lock, X
+  Sparkles, Trophy, Clock, BrainCircuit, Flame, X
 } from 'lucide-react';
 import type { Question, MathTopic, DifficultyTier, StudentProgress, Attempt } from '../types/schema';
 import { SEED_QUESTIONS } from '../data/seedQuestions';
@@ -10,7 +10,7 @@ import { evaluateAdaptiveStep } from '../engine/adaptiveEngine';
 import { db } from '../services/firebase';
 import { doc, setDoc, collection, addDoc } from 'firebase/firestore';
 import { queueAttemptOffline, syncOfflineQueueToFirestore } from '../services/offlineDb';
-import { checkBadgesToAward, BADGE_DEFINITIONS } from '../services/badgeService';
+import { checkBadgesToAward } from '../services/badgeService';
 import type { Badge } from '../services/badgeService';
 
 // Badge color map: id -> tailwind gradient + glow classes
@@ -23,7 +23,6 @@ const BADGE_COLORS: Record<string, { bg: string; border: string; glow: string; t
   decimals_master: { bg: 'from-cyan-500/30 to-blue-600/20',     border: 'border-cyan-500/50',    glow: 'shadow-cyan-500/40',   text: 'text-cyan-300' },
 };
 
-const ALL_BADGE_IDS = Object.keys(BADGE_DEFINITIONS);
 
 const TOPICS: MathTopic[] = ['fractions', 'ratios', 'geometry', 'decimals'];
 
@@ -278,50 +277,6 @@ export const StudentQuiz: React.FC = () => {
         </div>
       </div>
 
-      {/* ── ACHIEVEMENT BADGE SHELF ── */}
-      <div className="card-feature-light p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-3.5 h-3.5 text-[#3ecf8e]" />
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-[#52525b]">Achievements</span>
-          </div>
-          <span className="text-[11px] text-[#52525b]">
-            {earnedBadges.length}<span className="text-[#3f3f46]">/{ALL_BADGE_IDS.length}</span>
-          </span>
-        </div>
-
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-          {ALL_BADGE_IDS.map((badgeId) => {
-            const badge   = BADGE_DEFINITIONS[badgeId];
-            const earned  = earnedBadges.includes(badgeId);
-            const colors  = BADGE_COLORS[badgeId];
-            return (
-              <div key={badgeId} title={`${badge.name}: ${badge.description}`}
-                className={`relative flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all ${
-                  earned
-                    ? `bg-gradient-to-b ${colors.bg} ${colors.border} shadow-lg ${colors.glow}`
-                    : 'bg-[#141414] border-white/[0.04] opacity-40'
-                }`}>
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xl ${
-                  earned ? 'bg-black/20' : 'bg-[#1c1c1c]'
-                }`}>
-                  {earned ? badge.icon : <Lock className="w-3.5 h-3.5 text-[#3f3f46]" />}
-                </div>
-                <span className={`text-[10px] font-semibold text-center leading-tight ${
-                  earned ? colors.text : 'text-[#3f3f46]'
-                }`}>
-                  {badge.name}
-                </span>
-                {earned && (
-                  <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#3ecf8e] flex items-center justify-center">
-                    <span className="text-[8px] text-[#0a0a0a] font-bold">✓</span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
 
       {/* ── BADGE UNLOCK FLOATING TOAST ── */}
       {newlyUnlockedBadge && toastVisible && (() => {
