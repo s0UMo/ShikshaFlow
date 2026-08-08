@@ -1,0 +1,5 @@
+# Architecture Overview & Offline Design
+
+### Data Flow Architecture & Decision Engine Rationale
+
+In **Online Mode**, student responses are evaluated immediately against the client-side adaptive engine rules, stored locally, and instantly committed to Firebase Firestore; Firestore realtime listeners continuously stream progress data to the Teacher Dashboard. In **Offline Mode**, the PWA Service Worker handles asset delivery, while student quiz attempts are immediately appended to a local IndexedDB sync queue (`idb`) and local progress state is updated in memory; upon network reconnection, an automated background sync drains the queue into Firestore using a robust last-write-wins policy. **The adaptive-difficulty decision engine is strictly executed on the client side**. We intentionally placed the adaptive logic on the client because low-connectivity and intermittent networks in rural schools would cause high latency or failure during server-side evaluation calls; client-side difficulty computation guarantees instantaneous (<10ms) question transitions, 100% offline availability during exams, and zero server round-trip dependency during live hackathon demos.
