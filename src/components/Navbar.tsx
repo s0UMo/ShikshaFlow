@@ -1,27 +1,68 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { LogOut, Wifi, WifiOff, User, GraduationCap, LayoutDashboard } from 'lucide-react';
+import { LogOut, Wifi, WifiOff, User, GraduationCap, LayoutDashboard, RefreshCcw } from 'lucide-react';
+import { getQueuedAttemptsCount, syncOfflineQueueToFirestore } from '../services/offlineDb';
 
 export const Navbar: React.FC = () => {
   const navigate = useNavigate();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [queuedCount] = useState(0);
+  const [queuedCount, setQueuedCount] = useState<number>(0);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   const currentUserRaw = localStorage.getItem('shiksha_user');
   const user = currentUserRaw ? JSON.parse(currentUserRaw) : null;
 
+  // Poll IndexedDB queue count & set up network event listeners
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    updateQueueCount();
+
+    const handleOnline = async () => {
+      setIsOnline(true);
+      await triggerSync();
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      updateQueueCount();
+    };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    // Interval poll to keep badge count accurate
+    const interval = setInterval(updateQueueCount, 1500);
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      clearInterval(interval);
     };
   }, []);
+
+  const updateQueueCount = async () => {
+    try {
+      const count = await getQueuedAttemptsCount();
+      setQueuedCount(count);
+    } catch (e) {
+      // Fallback count from attempts in localStorage
+      const attemptsRaw = localStorage.getItem('shiksha_attempts');
+      if (attemptsRaw) {
+        try {
+          const attempts = JSON.parse(attemptsRaw);
+          const unSynced = attempts.filter((a: any) => !a.synced);
+          setQueuedCount(unSynced.length);
+        } catch (err) {}
+      }
+    }
+  };
+
+  const triggerSync = async () => {
+    setIsSyncing(true);
+    const result = await syncOfflineQueueToFirestore();
+    await updateQueueCount();
+    setTimeout(() => setIsSyncing(false), 800);
+    return result;
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('shiksha_user');
@@ -78,16 +119,37 @@ export const Navbar: React.FC = () => {
 
         {/* ── Right Status & Controls ── */}
         <div className="flex items-center gap-3">
-          {/* Online / Offline Sync Badge */}
+          {/* Offline / Online Sync Indicator Badge */}
           <div
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-all ${
-              isOnline
-                ? 'bg-[#3ecf8e]/10 text-[#3ecf8e] border-[#3ecf8e]/30'
+            onClick={triggerSync}
+            title={isOnline ? 'Click to trigger manual sync' : 'Offline Mode: Answers queued in IndexedDB'}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer select-none ${
+              isSyncing
+                ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 animate-pulse'
+                : isOnline
+                ? queuedCount > 0
+                  ? 'bg-amber-950/50 text-amber-300 border-amber-500/40'
+                  : 'bg-[#3ecf8e]/10 text-[#3ecf8e] border-[#3ecf8e]/30'
                 : 'bg-amber-950/50 text-amber-300 border-amber-500/40 animate-pulse'
             }`}
           >
-            {isOnline ? <Wifi className="w-3 h-3 text-[#3ecf8e]" /> : <WifiOff className="w-3 h-3 text-amber-400" />}
-            <span>{isOnline ? 'Online Sync' : `Offline (${queuedCount})`}</span>
+            {isSyncing ? (
+              <RefreshCcw className="w-3 h-3 text-indigo-400 animate-spin" />
+            ) : isOnline ? (
+              <Wifi className="w-3 h-3 text-[#3ecf8e]" />
+            ) : (
+              <WifiOff className="w-3 h-3 text-amber-400" />
+            )}
+
+            <span>
+              {isSyncing
+                ? 'Syncing to Cloud...'
+                : !isOnline
+                ? `Offline (${queuedCount} Queued)`
+                : queuedCount > 0
+                ? `Online (${queuedCount} Un-synced)`
+                : 'Online Sync Active'}
+            </span>
           </div>
 
           {user ? (

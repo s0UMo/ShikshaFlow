@@ -8,6 +8,7 @@ import { SEED_QUESTIONS } from '../data/seedQuestions';
 import { evaluateAdaptiveStep } from '../engine/adaptiveEngine';
 import { db } from '../services/firebase';
 import { doc, setDoc, collection, addDoc } from 'firebase/firestore';
+import { queueAttemptOffline, syncOfflineQueueToFirestore } from '../services/offlineDb';
 
 export const StudentQuiz: React.FC = () => {
   // Active student user from session
@@ -138,11 +139,14 @@ export const StudentQuiz: React.FC = () => {
       synced: navigator.onLine,
     };
 
-    // 1. LocalStorage update
+    // 1. LocalStorage & IndexedDB Queue Update
     const existingAttemptsRaw = localStorage.getItem('shiksha_attempts');
     const existingAttempts: Attempt[] = existingAttemptsRaw ? JSON.parse(existingAttemptsRaw) : [];
     existingAttempts.push(attempt);
     localStorage.setItem('shiksha_attempts', JSON.stringify(existingAttempts));
+
+    // Queue in IndexedDB for reliable background sync
+    await queueAttemptOffline(attempt);
 
     // Update Progress in LocalStorage
     const existingProgressRaw = localStorage.getItem('shiksha_progress');
@@ -178,8 +182,10 @@ export const StudentQuiz: React.FC = () => {
       try {
         await addDoc(collection(db, 'attempts'), attempt);
         await setDoc(doc(db, 'studentProgress', updatedProgress.id), updatedProgress);
+        // Automatically drain IndexedDB queue upon online write success
+        await syncOfflineQueueToFirestore();
       } catch (err) {
-        console.warn('Firestore attempt write deferred to offline queue:', err);
+        console.warn('Firestore attempt write deferred to IndexedDB offline queue:', err);
       }
     }
   };
