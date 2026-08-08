@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Volume2, VolumeX, CheckCircle2, XCircle, ArrowRight, 
+  CheckCircle2, XCircle, ArrowRight, 
   Sparkles, Trophy, Clock, BrainCircuit
 } from 'lucide-react';
 import type { Question, MathTopic, DifficultyTier, StudentProgress, Attempt } from '../types/schema';
 import { SEED_QUESTIONS } from '../data/seedQuestions';
 import { evaluateAdaptiveStep } from '../engine/adaptiveEngine';
-import { ttsService } from '../services/ttsService';
 import { db } from '../services/firebase';
 import { doc, setDoc, collection, addDoc } from 'firebase/firestore';
 
@@ -26,9 +25,6 @@ export const StudentQuiz: React.FC = () => {
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [isCorrect, setIsCorrect] = useState<boolean>(false);
   const [tierMessage, setTierMessage] = useState<string | null>(null);
-
-  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
-  const [speechLang, setSpeechLang] = useState<'hi-IN' | 'en-IN'>('hi-IN');
 
   const [startTime, setStartTime] = useState<number>(Date.now());
   const [lastResponseTimeMs, setLastResponseTimeMs] = useState<number>(0);
@@ -76,30 +72,11 @@ export const StudentQuiz: React.FC = () => {
   };
 
   const handleTopicChange = (topic: MathTopic) => {
-    ttsService.stop();
-    setIsSpeaking(false);
     setSelectedTopic(topic);
-  };
-
-  const handleSpeakQuestion = async () => {
-    if (!currentQuestion) return;
-    if (isSpeaking) {
-      ttsService.stop();
-      setIsSpeaking(false);
-      return;
-    }
-
-    setIsSpeaking(true);
-    const textToSpeak = speechLang === 'hi-IN' ? currentQuestion.questionTextHindi : currentQuestion.questionText;
-    await ttsService.speak(textToSpeak, speechLang, currentQuestion.questionTextHindiAudio);
-    setIsSpeaking(false);
   };
 
   const handleSubmitAnswer = async () => {
     if (selectedOption === null || !currentQuestion) return;
-
-    ttsService.stop();
-    setIsSpeaking(false);
 
     const endTime = Date.now();
     const durationMs = Math.max(1000, endTime - startTime);
@@ -289,35 +266,12 @@ export const StudentQuiz: React.FC = () => {
             </div>
           )}
 
-          {/* Question Text Header & Audio TTS Controls */}
+          {/* Question Text Header */}
           <div className="space-y-3 pb-4 border-b border-white/5">
             <div className="flex items-center justify-between gap-4">
               <span className="text-xs font-mono uppercase tracking-wider text-[#9ca3af]">
                 Question #{answeredIds.length + 1}
               </span>
-
-              {/* Hindi / English Language Toggle & Read Aloud Button */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setSpeechLang(speechLang === 'hi-IN' ? 'en-IN' : 'hi-IN')}
-                  className="px-2.5 py-1 rounded-md text-[11px] font-mono bg-[#1c1c1c] text-[#9ca3af] hover:text-white border border-white/10"
-                  title="Toggle Audio Language"
-                >
-                  {speechLang === 'hi-IN' ? '🇮🇳 Hindi' : '🇬🇧 English'}
-                </button>
-
-                <button
-                  onClick={handleSpeakQuestion}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all border ${
-                    isSpeaking 
-                      ? 'bg-[#3ecf8e] text-[#0a0a0a] border-[#3ecf8e] animate-pulse' 
-                      : 'bg-[#1c1c1c] text-[#3ecf8e] border-[#3ecf8e]/30 hover:bg-[#3ecf8e]/10'
-                  }`}
-                >
-                  {isSpeaking ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-                  <span>{isSpeaking ? 'Speaking...' : 'Read Aloud'}</span>
-                </button>
-              </div>
             </div>
 
             {/* Question Text */}
@@ -327,7 +281,7 @@ export const StudentQuiz: React.FC = () => {
 
             {/* Hindi Question Translation Preview */}
             <p className="text-xs text-[#3ecf8e]/80 italic">
-              हिंदी: {currentQuestion.questionTextHindi}
+              हिंदी अनुवाद: {currentQuestion.questionTextHindi}
             </p>
           </div>
 
