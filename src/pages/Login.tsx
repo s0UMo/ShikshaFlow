@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GraduationCap, UserCheck, Sparkles, ShieldCheck } from 'lucide-react';
+import { Sparkles, Users, ArrowRight, ShieldCheck, BookOpen, BrainCircuit } from 'lucide-react';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -20,59 +20,79 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-64px)] flex items-center justify-center p-4">
-      <div className="max-w-md w-full glass-card p-8 rounded-2xl border border-slate-800 shadow-2xl relative overflow-hidden">
-        <div className="absolute -top-24 -right-24 w-48 h-48 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-500/20 rounded-full blur-3xl pointer-events-none"></div>
+    <div className="w-full max-w-xl flex flex-col items-center justify-center min-h-[calc(100vh-180px)] py-8 animate-fade-in">
+      {/* Top Header Badge */}
+      <div className="mb-6 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 text-[#3ecf8e] text-xs font-medium">
+        <Sparkles className="w-3.5 h-3.5" />
+        <span>IEMHACKS 4.0 EdTech Track • Adaptive Math Platform</span>
+      </div>
 
-        <div className="text-center mb-8">
-          <div className="inline-flex p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 mb-4">
-            <GraduationCap className="w-8 h-8" />
+      <h1 className="text-3xl md:text-4xl font-medium tracking-tight text-center text-white mb-3">
+        Bridge the Rural-Urban <span className="text-shimmer">Learning Gap</span>
+      </h1>
+      <p className="text-sm md:text-base text-[#9ca3af] text-center max-w-md mb-8">
+        Offline-first personalized difficulty scaling, real-time teacher gap analytics, and Hindi audio support for Grade 6 Math.
+      </p>
+
+      {/* Main Role Selection Card */}
+      <div className="w-full card-feature-light p-6 md:p-8 space-y-4 border border-white/10 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[#3ecf8e]/5 rounded-full blur-2xl pointer-events-none"></div>
+
+        <h2 className="text-xs uppercase font-semibold tracking-wider text-[#9ca3af] mb-4">
+          Select Your Workspace Role
+        </h2>
+
+        {/* Student Role Button */}
+        <button
+          onClick={() => handleSelectRole('student', 'Rohan Sharma', 'student-1')}
+          className="w-full p-4 rounded-xl bg-[#1c1c1c] border border-white/10 hover:border-[#3ecf8e]/50 flex items-center justify-between text-left transition-all duration-200 group"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 rounded-lg bg-[#3ecf8e]/10 text-[#3ecf8e] border border-[#3ecf8e]/20 group-hover:scale-105 transition-transform">
+              <BrainCircuit className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-white text-base">Student Portal</h3>
+                <span className="badge-emerald">Grade 6 Math</span>
+              </div>
+              <p className="text-xs text-[#9ca3af] mt-0.5">Adaptive 3-tier difficulty ladder & audio read-aloud</p>
+            </div>
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Welcome to ShikshaFlow</h1>
-          <p className="text-sm text-slate-400 mt-2">
-            Adaptive Math Learning Platform for Rural & Urban Schools
-          </p>
-        </div>
+          <ArrowRight className="w-4 h-4 text-[#9ca3af] group-hover:text-[#3ecf8e] group-hover:translate-x-1 transition-all" />
+        </button>
 
-        <div className="space-y-4">
-          <button
-            onClick={() => handleSelectRole('student', 'Rohan Sharma', 'student-1')}
-            className="w-full group p-4 rounded-xl glass-card border border-indigo-500/20 hover:border-indigo-500/50 flex items-center justify-between text-left transition-all duration-200 hover:scale-[1.01]"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-indigo-500/20 text-indigo-300 group-hover:bg-indigo-500 group-hover:text-white transition-colors">
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-white">Continue as Student</h3>
-                <p className="text-xs text-slate-400">Grade 6 Math Practice & Quizzes</p>
-              </div>
+        {/* Teacher Role Button */}
+        <button
+          onClick={() => handleSelectRole('teacher', 'Priya Verma (Teacher)', 'teacher-1')}
+          className="w-full p-4 rounded-xl bg-[#1c1c1c] border border-white/10 hover:border-purple-500/50 flex items-center justify-between text-left transition-all duration-200 group"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 group-hover:scale-105 transition-transform">
+              <Users className="w-6 h-6" />
             </div>
-            <span className="text-xs font-semibold text-indigo-400 group-hover:translate-x-1 transition-transform">Start →</span>
-          </button>
-
-          <button
-            onClick={() => handleSelectRole('teacher', 'Priya Verma (Teacher)', 'teacher-1')}
-            className="w-full group p-4 rounded-xl glass-card border border-purple-500/20 hover:border-purple-500/50 flex items-center justify-between text-left transition-all duration-200 hover:scale-[1.01]"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-purple-500/20 text-purple-300 group-hover:bg-purple-500 group-hover:text-white transition-colors">
-                <UserCheck className="w-5 h-5" />
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-white text-base">Teacher Analytics</h3>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                  Live Heatmap
+                </span>
               </div>
-              <div>
-                <h3 className="font-semibold text-white">Continue as Teacher</h3>
-                <p className="text-xs text-slate-400">Class Heatmap & Learning Gaps</p>
-              </div>
+              <p className="text-xs text-[#9ca3af] mt-0.5">Real-time student gap identification & stuck alerts</p>
             </div>
-            <span className="text-xs font-semibold text-purple-400 group-hover:translate-x-1 transition-transform">View →</span>
-          </button>
-        </div>
+          </div>
+          <ArrowRight className="w-4 h-4 text-[#9ca3af] group-hover:text-purple-400 group-hover:translate-x-1 transition-all" />
+        </button>
 
-        <div className="mt-8 pt-6 border-t border-slate-800 text-center">
-          <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            PWA Ready • Offline First • Hindi Support
+        {/* Feature Pills Footer */}
+        <div className="pt-4 mt-6 border-t border-white/5 flex flex-wrap items-center justify-between text-xs text-[#52525b]">
+          <span className="flex items-center gap-1 text-[#9ca3af]">
+            <ShieldCheck className="w-3.5 h-3.5 text-[#3ecf8e]" />
+            IndexedDB Offline Queue
+          </span>
+          <span className="flex items-center gap-1 text-[#9ca3af]">
+            <BookOpen className="w-3.5 h-3.5 text-[#3ecf8e]" />
+            30 Grade 6 Math Questions
           </span>
         </div>
       </div>

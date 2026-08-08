@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, LogOut, Wifi, WifiOff } from 'lucide-react';
+import { LogOut, Wifi, WifiOff, User, GraduationCap, LayoutDashboard } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const navigate = useNavigate();
@@ -29,47 +29,85 @@ export const Navbar: React.FC = () => {
   };
 
   return (
-    <nav className="glass-card sticky top-0 z-50 px-4 py-3 border-b border-slate-800 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 group">
-          <div className="p-2 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/30 group-hover:scale-105 transition-transform">
-            <BookOpen className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="font-bold text-lg text-white tracking-wide flex items-center gap-1.5">
-              Shiksha<span className="gradient-text">Flow</span>
-              <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                Grade 6 Math
-              </span>
-            </span>
-          </div>
+    <nav
+      className="fixed top-0 inset-x-0 z-50 w-full"
+      style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+    >
+      {/* Glass background layer */}
+      <div
+        className="absolute inset-0 -z-10"
+        style={{
+          background: 'rgba(10,10,10,0.85)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+        }}
+      />
+
+      <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between gap-4">
+
+        {/* ── Logo ── */}
+        <Link to="/" className="flex items-center gap-2.5 select-none shrink-0 group">
+          <img src="/logo.png" alt="ShikshaFlow Logo" className="w-7 h-7 object-contain group-hover:scale-105 transition-transform" />
+          <span className="font-semibold text-[15px] tracking-tight text-[#ededed]">
+            Shiksha<span style={{ color: '#3ecf8e' }}>Flow</span>
+          </span>
+          <span className="hidden sm:inline-flex text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-[#3ecf8e]/10 text-[#3ecf8e] border border-[#3ecf8e]/20">
+            Grade 6 Math
+          </span>
         </Link>
 
-        {/* Status Indicator */}
+        {/* ── Center Navigation ── */}
+        {user && (
+          <div className="hidden md:flex items-center gap-1 bg-[#141414] p-1 rounded-lg border border-white/5">
+            <Link
+              to="/student"
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md text-[#ededed] hover:text-[#3ecf8e] transition-colors"
+            >
+              <GraduationCap className="w-3.5 h-3.5" />
+              <span>Student Quiz</span>
+            </Link>
+            <Link
+              to="/teacher"
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md text-[#ededed] hover:text-[#3ecf8e] transition-colors"
+            >
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              <span>Teacher Heatmap</span>
+            </Link>
+          </div>
+        )}
+
+        {/* ── Right Status & Controls ── */}
         <div className="flex items-center gap-3">
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-            isOnline 
-              ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/30 shadow-sm shadow-emerald-900/20' 
-              : 'bg-amber-950/50 text-amber-300 border-amber-500/40 animate-pulse'
-          }`}>
-            {isOnline ? <Wifi className="w-3.5 h-3.5 text-emerald-400" /> : <WifiOff className="w-3.5 h-3.5 text-amber-400" />}
-            <span>{isOnline ? 'Online Sync Active' : `Offline (${queuedCount} Queued)`}</span>
+          {/* Online / Offline Sync Badge */}
+          <div
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+              isOnline
+                ? 'bg-[#3ecf8e]/10 text-[#3ecf8e] border-[#3ecf8e]/30'
+                : 'bg-amber-950/50 text-amber-300 border-amber-500/40 animate-pulse'
+            }`}
+          >
+            {isOnline ? <Wifi className="w-3 h-3 text-[#3ecf8e]" /> : <WifiOff className="w-3 h-3 text-amber-400" />}
+            <span>{isOnline ? 'Online Sync' : `Offline (${queuedCount})`}</span>
           </div>
 
-          {user && (
-            <div className="flex items-center gap-3 pl-3 border-l border-slate-800">
-              <span className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
-                {user.name} ({user.role === 'teacher' ? 'Teacher' : 'Student'})
+          {user ? (
+            <div className="flex items-center gap-2 pl-3 border-l border-white/10">
+              <span className="text-xs text-[#9ca3af] flex items-center gap-1">
+                <User className="w-3.5 h-3.5 text-[#3ecf8e]" />
+                <span className="hidden sm:inline font-medium text-[#ededed]">{user.name}</span>
               </span>
               <button
                 onClick={handleLogout}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                className="p-1 rounded-md text-[#9ca3af] hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                 title="Log Out"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-3.5 h-3.5" />
               </button>
             </div>
+          ) : (
+            <Link to="/login" className="btn-primary-green text-xs px-3 py-1.5">
+              Sign In
+            </Link>
           )}
         </div>
       </div>

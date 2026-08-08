@@ -1,64 +1,334 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
+/* ─── Supabase Design Tokens ───────────────────────── */
+:root {
+  /* Backgrounds / surfaces */
+  --sb-bg:          #0a0a0a;
+  --sb-surface-100: #141414;
+  --sb-surface-200: #1c1c1c;
+  --sb-surface-300: #242424;
+  --sb-surface-400: #2c2c2c;
+
+  /* Borders */
+  --sb-border:          rgba(255, 255, 255, 0.06);
+  --sb-border-hover:    rgba(255, 255, 255, 0.10);
+  --sb-border-strong:   rgba(255, 255, 255, 0.14);
+  --sb-border-brand:    rgba(62, 207, 142, 0.28);
+
+  /* Foreground scale */
+  --sb-fg:         #ededed;
+  --sb-fg-light:   #9ca3af;
+  --sb-fg-muted:   #52525b;
+  --sb-fg-faint:   #3f3f46;
+
+  /* Brand */
+  --sb-brand:       #3ecf8e;
+  --sb-brand-dim:   rgba(62, 207, 142, 0.14);
+  --sb-brand-glow:  rgba(62, 207, 142, 0.22);
+}
+
+/* ─── Base ─────────────────────────────────────────── */
 @layer base {
-  :root {
-    --bg-main: #0b0f19;
-    --card-bg: rgba(17, 24, 39, 0.75);
-    --border-color: rgba(255, 255, 255, 0.1);
+  html {
+    background-color: var(--sb-bg);
+    color: var(--sb-fg);
+    color-scheme: dark;
+    scroll-behavior: smooth;
+    font-optical-sizing: auto;
   }
-
   body {
-    background-color: var(--bg-main);
-    color: #f3f4f6;
-    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: var(--sb-bg);
+    color: var(--sb-fg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     min-height: 100vh;
     margin: 0;
     overflow-x: hidden;
   }
+  * { box-sizing: border-box; }
+
+  /* ── Custom scrollbar ── */
+  ::-webkit-scrollbar            { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track      { background: transparent; }
+  ::-webkit-scrollbar-thumb      {
+    border-radius: 999px;
+    background: var(--sb-surface-400);
+    transition: background 0.2s ease;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--sb-brand); }
+  ::-webkit-scrollbar-corner     { background: transparent; }
+
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--sb-surface-400) transparent;
+  }
 }
 
+/* ── Thin scrollbar for inner panels ── */
+.scrollbar-thin::-webkit-scrollbar       { width: 4px; height: 4px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--sb-surface-300);
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover { background: var(--sb-brand); }
+
+/* ─── Keyframes ────────────────────────────────────── */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-8px); }
+}
+
+@keyframes pulseGlow {
+  0%   { box-shadow: 0 0 0   0px rgba(62,207,142,0),   0 2px 8px rgba(62,207,142,0.25); }
+  50%  { box-shadow: 0 0 20px 6px rgba(62,207,142,0.4), 0 2px 8px rgba(62,207,142,0.25); }
+  100% { box-shadow: 0 0 0   0px rgba(62,207,142,0),   0 2px 8px rgba(62,207,142,0.25); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+@keyframes topGlowPulse {
+  0%, 100% { opacity: 0.35; }
+  50%       { opacity: 0.55; }
+}
+
+@keyframes orbDrift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(30px, -20px) scale(1.06); }
+  66%       { transform: translate(-20px, 15px) scale(0.96); }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes bounce-soft {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-4px); }
+}
+
+@keyframes questionSlide {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ─── Animation utility classes ────────────────────── */
+
+.animate-fade-in     { animation: fadeIn       0.4s ease both; }
+.animate-slide-up    { animation: slideUp      0.45s cubic-bezier(.22,.68,0,1.2) both; }
+.animate-slide-down  { animation: slideDown    0.4s ease both; }
+.animate-scale-in    { animation: scaleIn      0.35s cubic-bezier(.22,.68,0,1.2) both; }
+.animate-float       { animation: float        4s ease-in-out infinite; }
+.animate-pulse-glow  { animation: pulseGlow    2.5s ease-in-out infinite; }
+.animate-question    { animation: questionSlide 0.3s cubic-bezier(.22,.68,0,1.2) both; }
+.animate-bounce-soft { animation: bounce-soft  2s ease-in-out infinite; }
+
+/* Stagger helpers */
+.delay-75  { animation-delay:  75ms; }
+.delay-100 { animation-delay: 100ms; }
+.delay-150 { animation-delay: 150ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+
+/* Shimmer text — Supabase brand gradient */
+.text-shimmer {
+  background: linear-gradient(90deg,
+    #3ecf8e  0%,
+    #a7f3d0 40%,
+    #3ecf8e 60%,
+    #1fa770 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 3s linear infinite;
+}
+
+/* ─── Typography scale ──────────────────────────────── */
+
+.display-xl {
+  font-size: clamp(34px, 5vw, 52px);
+  font-weight: 500;
+  line-height: 1.06;
+  letter-spacing: -1.5px;
+  color: var(--sb-fg);
+}
+.display-lg {
+  font-size: clamp(26px, 4vw, 38px);
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: -0.8px;
+  color: var(--sb-fg);
+}
+.display-md {
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.4px;
+  color: var(--sb-fg);
+}
+.heading-lg { font-size: 20px; font-weight: 500; line-height: 1.3; color: var(--sb-fg); }
+.heading-md { font-size: 17px; font-weight: 500; line-height: 1.4; color: var(--sb-fg); }
+.body-lg    { font-size: 17px; font-weight: 400; line-height: 1.6; color: var(--sb-fg-light); }
+.body-md    { font-size: 15px; font-weight: 400; line-height: 1.55; color: var(--sb-fg-light); }
+.micro      { font-size: 12px; font-weight: 400; line-height: 1.45; color: var(--sb-fg-muted); }
+.code-style {
+  font-family: ui-monospace, Menlo, Monaco, Consolas, 'Cascadia Code', monospace;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* ─── Buttons ──────────────────────────────────────── */
+
+/* Primary CTA — Supabase brand green fill */
+.btn-primary-green {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 8px 16px;
+  border-radius: 6px;
+  color: #0a0a0a;
+  background: var(--sb-brand);
+  border: 1px solid rgba(62, 207, 142, 0.55);
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.2s ease, transform 0.15s ease, border-color 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+.btn-primary-green:hover {
+  background: #48dfa0;
+  border-color: rgba(62, 207, 142, 0.8);
+  box-shadow: 0 0 18px rgba(62,207,142,0.35), 0 1px 2px rgba(0,0,0,0.3);
+  transform: translateY(-1px);
+}
+.btn-primary-green:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.btn-primary-green:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Secondary — Supabase muted/outline style */
+.btn-secondary-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 8px 16px;
+  border-radius: 6px;
+  color: var(--sb-fg);
+  background: var(--sb-surface-200);
+  border: 1px solid var(--sb-border-strong);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.btn-secondary-outline:hover {
+  background: var(--sb-surface-300);
+  border-color: var(--sb-border-hover);
+  transform: translateY(-1px);
+}
+.btn-secondary-outline:active { transform: translateY(0); }
+.btn-secondary-outline:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ─── Cards ────────────────────────────────────────── */
+
+/* Supabase panel card — surface-100 bg, hairline border */
+.card-feature-light {
+  border-radius: 12px;
+  border: 1px solid var(--sb-border);
+  background: var(--sb-surface-100);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.25);
+  transition: border-color 0.2s ease, box-shadow 0.25s ease;
+}
+.card-feature-light:hover {
+  border-color: var(--sb-border-hover);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5), 0 8px 24px rgba(0,0,0,0.3);
+}
+
+/* Glass card utility */
 .glass-card {
-  background: rgba(17, 24, 39, 0.7);
+  background: rgba(20, 20, 20, 0.75);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--sb-border);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
 }
 
-.glass-pill {
-  background: rgba(30, 41, 59, 0.6);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+/* ─── Badge ────────────────────────────────────────── */
+
+.badge-emerald {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  background-color: var(--sb-brand-dim);
+  border: 1px solid var(--sb-border-brand);
+  color: var(--sb-brand);
 }
 
-.gradient-text {
-  background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+/* ─── Focus / link helpers ──────────────────────────── */
+
+.focus-glow:focus-visible {
+  outline: 2px solid rgba(62, 207, 142, 0.55);
+  outline-offset: 2px;
 }
 
-.gradient-button {
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-  transition: all 0.2s ease-in-out;
+.link-underline { position: relative; }
+.link-underline::after {
+  content: '';
+  position: absolute;
+  left: 0; bottom: -2px;
+  width: 0; height: 1.5px;
+  background: var(--sb-brand);
+  transition: width 0.22s ease;
 }
-
-.gradient-button:hover {
-  background: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
-}
-
-/* Custom Scrollbars */
-::-webkit-scrollbar {
-  width: 8px;
-}
-::-webkit-scrollbar-track {
-  background: #0f172a;
-}
-::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #475569;
-}
+.link-underline:hover::after { width: 100%; }
