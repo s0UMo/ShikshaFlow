@@ -1,6 +1,6 @@
 /**
  * Sanitizes math symbols, fractions, and units into natural spoken words
- * so external TTS services produce studio-quality human speech.
+ * so TTS services produce clean human speech.
  */
 function sanitizeForSpeech(text: string, lang: 'hi' | 'en'): string {
   let clean = text;
@@ -82,6 +82,7 @@ function sanitizeForSpeech(text: string, lang: 'hi' | 'en'): string {
 class TTSService {
   private currentAudio: HTMLAudioElement | null = null;
   private synth: SpeechSynthesis | null = null;
+  private activeRequestId: number = 0;
 
   constructor() {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -95,7 +96,9 @@ class TTSService {
     _phoneticFallbackText?: string
   ): Promise<void> {
     return new Promise((resolve) => {
+      // 1. Immediately stop any current audio & bump request ID to invalidate existing callbacks
       this.stop();
+      const requestId = ++this.activeRequestId;
 
       if (!text || text.trim().length === 0) {
         resolve();
@@ -104,86 +107,70 @@ class TTSService {
 
       const isHindi = lang.startsWith('hi');
       const spokenText = sanitizeForSpeech(text, isHindi ? 'hi' : 'en');
-
-      // 1. PRIMARY EXTERNAL TTS ENGINE: Amazon Polly "Aditi" (Studio Quality Neural Hindi Voice)
       const encodedText = encodeURIComponent(spokenText.slice(0, 300));
-      // Voice: "Aditi" for Indian Hindi / English
-      const externalTtsUrl = `https://api.streamelements.com/kappa/v2/speech?voice=Aditi&text=${encodedText}`;
+      
+      // Amazon Polly Aditi studio voice URL
+      const audioUrl = `https://api.streamelements.com/kappa/v2/speech?voice=Aditi&text=${encodedText}`;
 
-      const audio = new Audio(externalTtsUrl);
+      const audio = new Audio(audioUrl);
       this.currentAudio = audio;
       audio.playbackRate = 0.95;
 
-      audio.onended = () => {
-        this.currentAudio = null;
-        resolve();
+      const finish = () => {
+        if (this.activeRequestId === requestId) {
+          if (this.currentAudio === audio) {
+            this.currentAudio = null;
+          }
+          resolve();
+        }
       };
+
+      audio.onended = finish;
 
       audio.onerror = () => {
-        console.warn('External Polly TTS error, trying secondary Google Translate TTS API...');
+        // Fallback to Web Speech API ONLY if this request is still active
+        if (this.activeRequestId !== requestId) return;
         this.currentAudio = null;
-        this.speakGoogleTranslateTTS(spokenText, isHindi ? 'hi' : 'en').then(resolve);
+
+        if (this.synth) {
+          if (this.synth.paused) this.synth.resume();
+          const utterance = new SpeechSynthesisUtterance(spokenText);
+          utterance.lang = lang;
+          utterance.rate = 0.9;
+          utterance.onend = finish;
+          utterance.onerror = finish;
+          this.synth.speak(utterance);
+        } else {
+          finish();
+        }
       };
 
-      audio.play().catch((err) => {
-        console.warn('External Polly TTS autoplay blocked, trying secondary Google Translate TTS...', err);
+      audio.play().catch(() => {
+        if (this.activeRequestId !== requestId) return;
         this.currentAudio = null;
-        this.speakGoogleTranslateTTS(spokenText, isHindi ? 'hi' : 'en').then(resolve);
+
+        if (this.synth) {
+          if (this.synth.paused) this.synth.resume();
+          const utterance = new SpeechSynthesisUtterance(spokenText);
+          utterance.lang = lang;
+          utterance.rate = 0.9;
+          utterance.onend = finish;
+          utterance.onerror = finish;
+          this.synth.speak(utterance);
+        } else {
+          finish();
+        }
       });
     });
   }
 
-  private speakGoogleTranslateTTS(text: string, langCode: string): Promise<void> {
-    return new Promise((resolve) => {
-      try {
-        const encodedText = encodeURIComponent(text.slice(0, 250));
-        const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=${langCode}&client=tw-ob`;
-
-        const audio = new Audio(audioUrl);
-        this.currentAudio = audio;
-        audio.playbackRate = 0.9;
-
-        audio.onended = () => {
-          this.currentAudio = null;
-          resolve();
-        };
-
-        audio.onerror = () => {
-          this.currentAudio = null;
-          this.speakWebSpeechFallback(text, langCode === 'hi' ? 'hi-IN' : 'en-IN').then(resolve);
-        };
-
-        audio.play().catch(() => {
-          this.currentAudio = null;
-          this.speakWebSpeechFallback(text, langCode === 'hi' ? 'hi-IN' : 'en-IN').then(resolve);
-        });
-      } catch (err) {
-        this.speakWebSpeechFallback(text, langCode === 'hi' ? 'hi-IN' : 'en-IN').then(resolve);
-      }
-    });
-  }
-
-  private speakWebSpeechFallback(text: string, lang: string): Promise<void> {
-    return new Promise((resolve) => {
-      if (!this.synth) {
-        resolve();
-        return;
-      }
-      if (this.synth.paused) {
-        this.synth.resume();
-      }
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = lang;
-      utterance.rate = 0.9;
-      utterance.onend = () => resolve();
-      utterance.onerror = () => resolve();
-      this.synth.speak(utterance);
-    });
-  }
-
   public stop(): void {
+    // Invalidate any ongoing callbacks
+    this.activeRequestId++;
+
     if (this.currentAudio) {
       this.currentAudio.pause();
+      this.currentAudio.currentTime = 0;
       this.currentAudio = null;
     }
     if (this.synth) {
