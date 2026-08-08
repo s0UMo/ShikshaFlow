@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { LogOut, Wifi, WifiOff, User, GraduationCap, LayoutDashboard, RefreshCcw } from 'lucide-react';
+import { LogOut, Wifi, WifiOff, User, GraduationCap, LayoutDashboard, RefreshCcw, RotateCcw } from 'lucide-react';
 import { getQueuedAttemptsCount, syncOfflineQueueToFirestore } from '../services/offlineDb';
+import { seedLocalStorage } from '../services/seedService';
 
 export const Navbar: React.FC = () => {
   const navigate = useNavigate();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [queuedCount, setQueuedCount] = useState<number>(0);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [resetSuccess, setResetSuccess] = useState<boolean>(false);
 
   const currentUserRaw = localStorage.getItem('shiksha_user');
   const user = currentUserRaw ? JSON.parse(currentUserRaw) : null;
@@ -28,7 +30,6 @@ export const Navbar: React.FC = () => {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Interval poll to keep badge count accurate
     const interval = setInterval(updateQueueCount, 1500);
 
     return () => {
@@ -56,12 +57,21 @@ export const Navbar: React.FC = () => {
     } catch (err) {
       console.warn('Sync error:', err);
     } finally {
-      // Guaranteed sync status clearance within 600ms
       setTimeout(() => {
         setIsSyncing(false);
         updateQueueCount();
       }, 600);
     }
+  };
+
+  const handleResetDemoData = () => {
+    localStorage.removeItem('shiksha_attempts');
+    localStorage.removeItem('shiksha_progress');
+    seedLocalStorage();
+    window.dispatchEvent(new Event('storage'));
+    updateQueueCount();
+    setResetSuccess(true);
+    setTimeout(() => setResetSuccess(false), 2000);
   };
 
   const handleLogout = () => {
@@ -119,6 +129,16 @@ export const Navbar: React.FC = () => {
 
         {/* ── Right Status & Controls ── */}
         <div className="flex items-center gap-3">
+          {/* Reset Demo Data Button */}
+          <button
+            onClick={handleResetDemoData}
+            title="Reset demo data to initial seed state for rehearsals"
+            className="hidden sm:inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-md bg-[#1c1c1c] text-[#9ca3af] hover:text-white border border-white/10 transition-colors"
+          >
+            <RotateCcw className="w-3 h-3 text-[#3ecf8e]" />
+            <span>{resetSuccess ? 'Reset Done!' : 'Reset Demo'}</span>
+          </button>
+
           {/* Offline / Online Sync Indicator Badge */}
           <div
             onClick={triggerSync}
