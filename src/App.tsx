@@ -1,9 +1,19 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
-import { Login } from './pages/Login';
-import { StudentQuiz } from './pages/StudentQuiz';
-import { TeacherDashboard } from './pages/TeacherDashboard';
+import { RefreshCw } from 'lucide-react';
+
+// Production Code-Splitting with Lazy Page Loading
+const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
+const StudentQuiz = lazy(() => import('./pages/StudentQuiz').then(m => ({ default: m.StudentQuiz })));
+const TeacherDashboard = lazy(() => import('./pages/TeacherDashboard').then(m => ({ default: m.TeacherDashboard })));
+
+const LoadingFallback: React.FC = () => (
+  <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3">
+    <RefreshCw className="w-8 h-8 text-[#3ecf8e] animate-spin" />
+    <span className="text-xs text-[#9ca3af] font-mono">Loading ShikshaFlow Workspace...</span>
+  </div>
+);
 
 export const App: React.FC = () => {
   return (
@@ -42,12 +52,14 @@ export const App: React.FC = () => {
         <Navbar />
 
         <main className="relative z-10 flex-1 flex flex-col items-center pt-20 pb-16 px-6 max-w-7xl mx-auto w-full">
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/student" element={<StudentQuiz />} />
-            <Route path="/teacher" element={<TeacherDashboard />} />
-            <Route path="*" element={<Navigate to="/login" replace />} />
-          </Routes>
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/student" element={<StudentQuiz />} />
+              <Route path="/teacher" element={<TeacherDashboard />} />
+              <Route path="*" element={<Navigate to="/login" replace />} />
+            </Routes>
+          </Suspense>
         </main>
 
         {/* Footer */}
@@ -74,7 +86,7 @@ export const App: React.FC = () => {
               <span>•</span>
               <span>Offline-First (PWA)</span>
               <span>•</span>
-              <span>Hindi Audio TTS</span>
+              <span>Realtime Teacher Analytics</span>
             </nav>
           </div>
         </footer>
