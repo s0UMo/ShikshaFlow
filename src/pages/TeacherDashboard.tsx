@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, AlertTriangle, ChevronRight, RefreshCw, Database,
-  BarChart3, CheckCircle2, XCircle, Clock, Search, X
+  BarChart3, CheckCircle2, XCircle, Clock, Search, X, ShieldCheck, Award
 } from 'lucide-react';
 import type { StudentProgress, User, MathTopic, Attempt } from '../types/schema';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -23,7 +23,6 @@ export const TeacherDashboard: React.FC = () => {
   useEffect(() => {
     loadLocalData();
 
-    // 1. Firestore Realtime Listeners
     let unsubscribeProgress: () => void = () => {};
     let unsubscribeAttempts: () => void = () => {};
 
@@ -55,7 +54,6 @@ export const TeacherDashboard: React.FC = () => {
       }
     }
 
-    // 2. Storage event listener for multi-tab local updates during offline/demo mode
     const handleStorageChange = () => {
       loadLocalData();
     };
@@ -112,7 +110,6 @@ export const TeacherDashboard: React.FC = () => {
   };
 
   // Identify "stuck" students (Early Warning System)
-  // Rule: Rolling history contains 2+ consecutive wrong answers or accuracy < 40%
   const getStuckStudents = () => {
     const stuckList: { student: User; topic: MathTopic; progress: StudentProgress; reason: string }[] = [];
 
@@ -143,7 +140,6 @@ export const TeacherDashboard: React.FC = () => {
 
   const stuckStudents = getStuckStudents();
 
-  // Filter students based on search query
   const filteredStudents = students.filter((s) =>
     s.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -151,12 +147,12 @@ export const TeacherDashboard: React.FC = () => {
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8 animate-fade-in pb-16">
       
-      {/* ── Page Title & Controls ── */}
+      {/* ── Page Header Controls ── */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-white/5">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="badge-emerald">Grade 6 Math</span>
-            <span className="text-xs text-[#9ca3af]">Teacher Analytics Workspace</span>
+            <span className="text-xs text-[#9ca3af]">Teacher Gap Analytics Workspace</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-medium tracking-tight text-white flex items-center gap-2.5">
             <Users className="w-7 h-7 text-[#3ecf8e]" /> Class Learning Gaps & Heatmap
@@ -167,7 +163,7 @@ export const TeacherDashboard: React.FC = () => {
           <button
             onClick={handleSeedDatabase}
             className="btn-primary-green text-xs px-3.5 py-2 flex items-center gap-1.5"
-            title="Push 32 seed questions and student progress to your real Firebase project"
+            title="Push seed dataset into Cloud Firestore"
           >
             <Database className="w-3.5 h-3.5" />
             <span>Seed Firestore DB</span>
@@ -183,6 +179,36 @@ export const TeacherDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* ── METRICS SUMMARY CARDS ROW ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-4 rounded-xl bg-[#141414] border border-white/10 space-y-1">
+          <span className="text-xs text-[#9ca3af]">Total Enrolled Students</span>
+          <div className="text-2xl font-bold text-white">{students.length}</div>
+          <span className="text-[11px] text-[#3ecf8e]">Grade 6 Math Section A</span>
+        </div>
+
+        <div className="p-4 rounded-xl bg-[#141414] border border-white/10 space-y-1">
+          <span className="text-xs text-[#9ca3af]">Stuck Student Alerts</span>
+          <div className="text-2xl font-bold text-rose-400">{stuckStudents.length}</div>
+          <span className="text-[11px] text-rose-300">Requires Teacher Intervention</span>
+        </div>
+
+        <div className="p-4 rounded-xl bg-[#141414] border border-white/10 space-y-1">
+          <span className="text-xs text-[#9ca3af]">Total Attempt Logs</span>
+          <div className="text-2xl font-bold text-white">{attemptsList.length}</div>
+          <span className="text-[11px] text-purple-400">Synced to Cloud / IndexedDB</span>
+        </div>
+
+        <div className="p-4 rounded-xl bg-[#141414] border border-white/10 space-y-1">
+          <span className="text-xs text-[#9ca3af]">Sync Engine Status</span>
+          <div className="text-sm font-semibold text-[#3ecf8e] flex items-center gap-1.5 pt-1">
+            <ShieldCheck className="w-4 h-4 text-[#3ecf8e]" />
+            <span>Firestore Realtime Active</span>
+          </div>
+          <span className="text-[11px] text-[#9ca3af]">Multi-tab Listener Live</span>
+        </div>
+      </div>
+
       {/* ── EARLY WARNING SYSTEM: STUCK STUDENTS HIGHLIGHT ── */}
       <div className="card-feature-light p-6 border-l-4 border-l-rose-500 border-white/10 space-y-4 bg-rose-950/10">
         <div className="flex items-center justify-between">
@@ -194,11 +220,11 @@ export const TeacherDashboard: React.FC = () => {
               <h2 className="text-base font-semibold text-white flex items-center gap-2">
                 Early Warning System
                 <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-xs font-mono font-bold">
-                  {stuckStudents.length} Students Need Attention
+                  {stuckStudents.length} Action Items
                 </span>
               </h2>
               <p className="text-xs text-[#9ca3af]">
-                Real-time alert for students exhibiting learning gaps or repeated incorrect attempts.
+                Real-time alert for students exhibiting learning bottlenecks or repeated incorrect attempts.
               </p>
             </div>
           </div>
@@ -382,8 +408,8 @@ export const TeacherDashboard: React.FC = () => {
 
             {/* Badges Earned Row */}
             <div className="p-4 rounded-xl bg-[#141414] border border-white/5 space-y-2">
-              <span className="text-xs font-semibold text-[#9ca3af] uppercase tracking-wider block">
-                Earned Badges & Achievements
+              <span className="text-xs font-semibold text-[#9ca3af] uppercase tracking-wider block flex items-center gap-1.5">
+                <Award className="w-4 h-4 text-amber-400" /> Earned Badges & Achievements
               </span>
               <div className="flex flex-wrap items-center gap-2">
                 {(() => {

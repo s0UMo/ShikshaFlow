@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { LogOut, Wifi, WifiOff, User, GraduationCap, LayoutDashboard, RefreshCcw, RotateCcw } from 'lucide-react';
 import { getQueuedAttemptsCount, syncOfflineQueueToFirestore } from '../services/offlineDb';
 import { seedLocalStorage } from '../services/seedService';
 
 export const Navbar: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [queuedCount, setQueuedCount] = useState<number>(0);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -80,66 +81,61 @@ export const Navbar: React.FC = () => {
   };
 
   return (
-    <nav
-      className="fixed top-0 inset-x-0 z-50 w-full"
-      style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
-    >
-      {/* Glass background layer */}
-      <div
-        className="absolute inset-0 -z-10"
-        style={{
-          background: 'rgba(10,10,10,0.85)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-        }}
-      />
-
+    <nav className="fixed top-0 inset-x-0 z-50 w-full border-b border-white/[0.06] bg-[#0a0a0a]/85 backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between gap-4">
 
-        {/* ── Logo ── */}
+        {/* ── Brand Logo ── */}
         <Link to="/" className="flex items-center gap-2.5 select-none shrink-0 group">
           <img src="/logo.png" alt="ShikshaFlow Logo" className="w-7 h-7 object-contain group-hover:scale-105 transition-transform" />
           <span className="font-semibold text-[15px] tracking-tight text-[#ededed]">
             Shiksha<span style={{ color: '#3ecf8e' }}>Flow</span>
           </span>
-          <span className="hidden sm:inline-flex text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-[#3ecf8e]/10 text-[#3ecf8e] border border-[#3ecf8e]/20">
+          <span className="hidden sm:inline-flex text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#3ecf8e]/10 text-[#3ecf8e] border border-[#3ecf8e]/20 uppercase">
             Grade 6 Math
           </span>
         </Link>
 
-        {/* ── Center Navigation ── */}
+        {/* ── Navigation Tabs ── */}
         {user && (
           <div className="hidden md:flex items-center gap-1 bg-[#141414] p-1 rounded-lg border border-white/5">
             <Link
               to="/student"
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md text-[#ededed] hover:text-[#3ecf8e] transition-colors"
+              className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md font-medium transition-all ${
+                location.pathname === '/student'
+                  ? 'bg-[#3ecf8e] text-[#0a0a0a] font-semibold shadow-sm'
+                  : 'text-[#9ca3af] hover:text-white'
+              }`}
             >
               <GraduationCap className="w-3.5 h-3.5" />
-              <span>Student Quiz</span>
+              <span>Student Portal</span>
             </Link>
             <Link
               to="/teacher"
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md text-[#ededed] hover:text-[#3ecf8e] transition-colors"
+              className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md font-medium transition-all ${
+                location.pathname === '/teacher'
+                  ? 'bg-purple-500 text-white font-semibold shadow-sm'
+                  : 'text-[#9ca3af] hover:text-white'
+              }`}
             >
               <LayoutDashboard className="w-3.5 h-3.5" />
-              <span>Teacher Heatmap</span>
+              <span>Teacher Dashboard</span>
             </Link>
           </div>
         )}
 
-        {/* ── Right Status & Controls ── */}
+        {/* ── Status Controls ── */}
         <div className="flex items-center gap-3">
-          {/* Reset Demo Data Button */}
+          {/* Reset Demo Button */}
           <button
             onClick={handleResetDemoData}
-            title="Reset demo data to initial seed state for rehearsals"
-            className="hidden sm:inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-md bg-[#1c1c1c] text-[#9ca3af] hover:text-white border border-white/10 transition-colors"
+            title="Reset demo data to clean initial seed state"
+            className="hidden sm:inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-md bg-[#1c1c1c] text-[#9ca3af] hover:text-white border border-white/10 transition-colors"
           >
             <RotateCcw className="w-3 h-3 text-[#3ecf8e]" />
             <span>{resetSuccess ? 'Reset Done!' : 'Reset Demo'}</span>
           </button>
 
-          {/* Offline / Online Sync Indicator Badge */}
+          {/* Network Sync Status Badge */}
           <div
             onClick={triggerSync}
             title={isOnline ? 'Click to trigger manual sync' : 'Offline Mode: Answers queued in IndexedDB'}
@@ -173,7 +169,7 @@ export const Navbar: React.FC = () => {
           </div>
 
           {user ? (
-            <div className="flex items-center gap-2 pl-3 border-l border-white/10">
+            <div className="flex items-center gap-2.5 pl-3 border-l border-white/10">
               <span className="text-xs text-[#9ca3af] flex items-center gap-1">
                 <User className="w-3.5 h-3.5 text-[#3ecf8e]" />
                 <span className="hidden sm:inline font-medium text-[#ededed]">{user.name}</span>

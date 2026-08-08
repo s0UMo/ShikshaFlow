@@ -247,11 +247,12 @@ export const StudentQuiz: React.FC = () => {
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6 animate-fade-in pb-12">
-      {/* ── Topic Selector Bar ── */}
+      
+      {/* ── TOP BAR: TOPIC SELECTOR ── */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-[#141414] border border-white/5 shadow-xl">
         <div className="flex items-center gap-2">
           <BrainCircuit className="w-5 h-5 text-[#3ecf8e]" />
-          <span className="text-sm font-semibold text-white">Math Topic:</span>
+          <span className="text-sm font-semibold text-white">Select Topic:</span>
         </div>
 
         <div className="flex items-center gap-1.5 overflow-x-auto py-1">
@@ -271,19 +272,19 @@ export const StudentQuiz: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Gamified Header: Streak & Badges ── */}
-      <div className="flex flex-wrap items-center justify-between gap-4 px-2">
+      {/* ── GAMIFIED STATS BAR ── */}
+      <div className="flex flex-wrap items-center justify-between gap-4 px-2 bg-[#141414]/50 p-3 rounded-xl border border-white/5">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-xs text-[#9ca3af]">
             <span>Student: <strong className="text-white">{user.name}</strong></span>
             <span>•</span>
-            <span>Attempts: <strong className="text-white">{totalAttemptCount}</strong></span>
+            <span>Session Attempts: <strong className="text-white">{totalAttemptCount}</strong></span>
           </div>
 
           {/* Answer Streak Pill */}
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold animate-pulse">
             <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-            <span>{streakCount} Answer Streak</span>
+            <span>{streakCount} Streak</span>
           </div>
         </div>
 
@@ -306,10 +307,12 @@ export const StudentQuiz: React.FC = () => {
             </div>
           )}
 
-          <span className="text-xs text-[#9ca3af]">Adaptive Difficulty:</span>
-          <span className={`text-xs px-3 py-1 rounded-full font-semibold uppercase tracking-wider border ${getTierColor(currentTier)}`}>
-            {currentTier} Tier
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-[#9ca3af]">Tier:</span>
+            <span className={`text-xs px-3 py-1 rounded-full font-semibold uppercase tracking-wider border ${getTierColor(currentTier)}`}>
+              {currentTier}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -332,7 +335,7 @@ export const StudentQuiz: React.FC = () => {
         </div>
       )}
 
-      {/* ── Main Question Card ── */}
+      {/* ── MAIN QUESTION CARD ── */}
       {currentQuestion ? (
         <div className="card-feature-light p-6 md:p-8 space-y-6 border border-white/10 relative overflow-hidden">
 
@@ -350,6 +353,9 @@ export const StudentQuiz: React.FC = () => {
               <span className="text-xs font-mono uppercase tracking-wider text-[#9ca3af]">
                 Question #{answeredIds.length + 1}
               </span>
+              <span className="text-xs uppercase font-mono px-2 py-0.5 rounded bg-white/5 text-[#9ca3af]">
+                {currentQuestion.difficulty}
+              </span>
             </div>
 
             {/* Question Text */}
@@ -357,10 +363,10 @@ export const StudentQuiz: React.FC = () => {
               {currentQuestion.questionText}
             </h2>
 
-            {/* Hindi Question Translation Preview */}
-            <p className="text-xs text-[#3ecf8e]/80 italic">
-              हिंदी अनुवाद: {currentQuestion.questionTextHindi}
-            </p>
+            {/* Hindi Question Translation */}
+            <div className="p-2.5 rounded-lg bg-[#141414] border border-white/5 text-xs text-[#3ecf8e]/90 font-sans">
+              <strong>हिंदी अनुवाद:</strong> {currentQuestion.questionTextHindi}
+            </div>
           </div>
 
           {/* Options Grid */}
@@ -405,7 +411,7 @@ export const StudentQuiz: React.FC = () => {
               <button
                 disabled={selectedOption === null}
                 onClick={handleSubmitAnswer}
-                className="btn-primary-green text-sm px-6 py-2.5 w-full md:w-auto ml-auto"
+                className="btn-primary-green text-sm px-6 py-2.5 w-full md:w-auto ml-auto font-semibold"
               >
                 Submit Answer
               </button>
@@ -428,7 +434,7 @@ export const StudentQuiz: React.FC = () => {
 
                 <button
                   onClick={handleNextQuestion}
-                  className="btn-primary-green text-sm px-5 py-2 flex items-center gap-2"
+                  className="btn-primary-green text-sm px-5 py-2 flex items-center gap-2 font-semibold"
                 >
                   <span>Next Question</span>
                   <ArrowRight className="w-4 h-4" />
@@ -457,7 +463,7 @@ export const StudentQuiz: React.FC = () => {
               setAnsweredIds([]);
               loadTopicProgress(selectedTopic);
             }}
-            className="btn-primary-green text-xs px-4 py-2"
+            className="btn-primary-green text-xs px-4 py-2 font-semibold"
           >
             Practice Topic Again
           </button>
