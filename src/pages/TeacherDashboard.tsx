@@ -1,19 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Users, AlertTriangle, RefreshCw, Database, BarChart3,
+  Users, AlertTriangle, RefreshCw, BarChart3,
   CheckCircle2, XCircle, Clock, Search, X, ChevronRight,
   ShieldCheck, Award, TrendingUp, Activity
 } from 'lucide-react';
 import type { StudentProgress, User, MathTopic, Attempt } from '../types/schema';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { SEED_STUDENTS, INITIAL_PROGRESS, seedFirestoreData } from '../services/seedService';
 
 const TOPICS: MathTopic[] = ['fractions', 'ratios', 'geometry', 'decimals'];
 
 export const TeacherDashboard: React.FC = () => {
-  const [students] = useState<User[]>(SEED_STUDENTS);
-  const [progressList, setProgressList]   = useState<StudentProgress[]>(INITIAL_PROGRESS);
+  const [students, setStudents]           = useState<User[]>([]);
+  const [progressList, setProgressList]   = useState<StudentProgress[]>([]);
   const [attemptsList, setAttemptsList]   = useState<Attempt[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
   const [searchQuery, setSearchQuery]     = useState<string>('');
@@ -22,11 +21,22 @@ export const TeacherDashboard: React.FC = () => {
   useEffect(() => {
     loadLocalData();
 
+    let unsubStudents: () => void = () => {};
     let unsubProgress: () => void = () => {};
     let unsubAttempts: () => void = () => {};
 
     if (navigator.onLine) {
       try {
+        // Load real users from Firestore
+        unsubStudents = onSnapshot(collection(db, 'users'), (snap) => {
+          const data = snap.docs
+            .map((d) => d.data() as User)
+            .filter((u) => u.role === 'student');
+          if (data.length > 0) {
+            setStudents(data);
+            localStorage.setItem('shiksha_students', JSON.stringify(data));
+          }
+        });
         unsubProgress = onSnapshot(collection(db, 'studentProgress'), (snap) => {
           if (!snap.empty) {
             const data = snap.docs.map((d) => d.data() as StudentProgress);
@@ -46,11 +56,13 @@ export const TeacherDashboard: React.FC = () => {
 
     const onStorage = () => loadLocalData();
     window.addEventListener('storage', onStorage);
-    return () => { unsubProgress(); unsubAttempts(); window.removeEventListener('storage', onStorage); };
+    return () => { unsubStudents(); unsubProgress(); unsubAttempts(); window.removeEventListener('storage', onStorage); };
   }, []);
 
   const loadLocalData = () => {
     try {
+      const s = localStorage.getItem('shiksha_students');
+      if (s) { const parsed: User[] = JSON.parse(s); setStudents(parsed.filter(u => u.role === 'student')); }
       const p = localStorage.getItem('shiksha_progress');
       if (p) setProgressList(JSON.parse(p));
       const a = localStorage.getItem('shiksha_attempts');
@@ -59,14 +71,6 @@ export const TeacherDashboard: React.FC = () => {
   };
 
   const handleRefresh = () => { setIsRefreshing(true); loadLocalData(); setTimeout(() => setIsRefreshing(false), 500); };
-
-  const handleSeedDB = async () => {
-    setIsRefreshing(true);
-    const ok = await seedFirestoreData();
-    loadLocalData();
-    setIsRefreshing(false);
-    alert(ok ? '✅ Firestore seeded: 32 questions + 5 student profiles!' : '⚠️ Offline — seeded local cache instead.');
-  };
 
   const getProgress = (studentId: string, topic: MathTopic) =>
     progressList.find((p) => p.studentId === studentId && p.topic === topic);
@@ -108,23 +112,18 @@ export const TeacherDashboard: React.FC = () => {
           </h1>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button onClick={handleSeedDB} className="btn-secondary-outline text-xs px-3 py-2 flex items-center gap-1.5">
-            <Database className="w-3.5 h-3.5 text-[#3ecf8e]" /> Seed DB
-          </button>
-          <button onClick={handleRefresh} className="btn-primary-green text-xs px-3 py-2 flex items-center gap-1.5">
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} /> Sync Live
-          </button>
-        </div>
+        <button onClick={handleRefresh} className="btn-primary-green text-xs px-3 py-2 flex items-center gap-1.5">
+          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} /> Refresh
+        </button>
       </div>
 
       {/* ── STAT CARDS ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'Total Students', value: students.length, sub: 'Section A', icon: <Users className="w-4 h-4" />, color: 'text-[#3ecf8e]' },
-          { label: 'Stuck Alerts', value: stuckStudents.length, sub: 'Need intervention', icon: <AlertTriangle className="w-4 h-4" />, color: 'text-rose-400' },
-          { label: 'Total Attempts', value: attemptsList.length, sub: 'Logged & synced', icon: <Activity className="w-4 h-4" />, color: 'text-purple-400' },
-          { label: 'Avg. Accuracy', value: `${avgAccuracy}%`, sub: 'Rolling window', icon: <TrendingUp className="w-4 h-4" />, color: 'text-amber-400' },
+          { label: 'Total Students', value: students.length || '—', sub: 'Registered accounts', icon: <Users className="w-4 h-4" />, color: 'text-[#3ecf8e]' },
+          { label: 'Needs Support', value: stuckStudents.length || '—', sub: 'Low accuracy flagged', icon: <AlertTriangle className="w-4 h-4" />, color: 'text-rose-400' },
+          { label: 'Total Attempts', value: attemptsList.length || '—', sub: 'Synced to Firestore', icon: <Activity className="w-4 h-4" />, color: 'text-purple-400' },
+          { label: 'Avg. Accuracy', value: progressList.length ? `${avgAccuracy}%` : '—', sub: 'Rolling window', icon: <TrendingUp className="w-4 h-4" />, color: 'text-amber-400' },
         ].map((card) => (
           <div key={card.label} className="card-feature-light p-4 space-y-2">
             <div className={`flex items-center gap-1.5 text-xs font-medium ${card.color}`}>

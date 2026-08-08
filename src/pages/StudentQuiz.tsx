@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   CheckCircle2, XCircle, ArrowRight,
   Sparkles, Trophy, Clock, BrainCircuit, Flame, Award
@@ -28,10 +29,15 @@ const TIER_STYLES: Record<DifficultyTier, string> = {
 };
 
 export const StudentQuiz: React.FC = () => {
+  const navigate = useNavigate();
   const currentUserRaw = localStorage.getItem('shiksha_user');
-  const user = currentUserRaw
-    ? JSON.parse(currentUserRaw)
-    : { id: 'student-1', name: 'Rohan Sharma', role: 'student' };
+  const user = currentUserRaw ? JSON.parse(currentUserRaw) : null;
+
+  useEffect(() => {
+    if (!user) navigate('/login', { replace: true });
+  }, []);
+
+  if (!user) return null;
 
   const [selectedTopic, setSelectedTopic] = useState<MathTopic>('fractions');
   const [currentTier, setCurrentTier]     = useState<DifficultyTier>('easy');
