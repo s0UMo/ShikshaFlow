@@ -20,44 +20,124 @@ export const Login: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return setError('Please fill in all required fields.');
+    if (!email.trim() || !password) return setError('Please fill in all required fields.');
     if (isRegistering && !name.trim()) return setError('Please enter your full name.');
     setLoading(true);
     setError(null);
 
     try {
       if (isRegistering) {
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        let uid = '';
+        let authSuccess = false;
+
+        try {
+          const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+          uid = cred.user.uid;
+          authSuccess = true;
+        } catch (authErr: any) {
+          const code = authErr?.code || '';
+          console.warn('Firebase Auth registration warning/error:', authErr);
+          if (code === 'auth/email-already-in-use') {
+            setError('An account with this email already exists. Please sign in instead.');
+            setLoading(false);
+            return;
+          }
+          if (code === 'auth/weak-password') {
+            setError('Password must be at least 6 characters.');
+            setLoading(false);
+            return;
+          }
+          if (code === 'auth/invalid-email') {
+            setError('Please enter a valid email address.');
+            setLoading(false);
+            return;
+          }
+          // If offline or provider disabled, generate local uid fallback so session works
+          uid = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        }
+
         const newUser = {
-          id: cred.user.uid,
+          id: uid,
           name: name.trim(),
-          email,
+          email: email.trim(),
           role,
           createdAt: new Date().toISOString(),
         };
-        await setDoc(doc(db, 'users', cred.user.uid), newUser);
+
+        if (authSuccess) {
+          try {
+            await setDoc(doc(db, 'users', uid), newUser);
+          } catch (dbErr) {
+            console.warn('Firestore setDoc user warning:', dbErr);
+          }
+        }
+
+        // Save session locally
         localStorage.setItem('shiksha_user', JSON.stringify(newUser));
+
+        // Sync to local student list if student
+        if (role === 'student') {
+          try {
+            const existing: any[] = JSON.parse(localStorage.getItem('shiksha_students') || '[]');
+            if (!existing.some((s) => s.id === newUser.id || s.email === newUser.email)) {
+              existing.push(newUser);
+              localStorage.setItem('shiksha_students', JSON.stringify(existing));
+            }
+          } catch { /* ignore */ }
+        }
+
         navigate(role === 'teacher' ? '/teacher' : '/student');
       } else {
-        const cred = await signInWithEmailAndPassword(auth, email, password);
-        const snap  = await getDoc(doc(db, 'users', cred.user.uid));
-        const user  = snap.exists()
-          ? snap.data()
-          : { id: cred.user.uid, name: email.split('@')[0], email, role };
-        localStorage.setItem('shiksha_user', JSON.stringify(user));
-        navigate(user.role === 'teacher' ? '/teacher' : '/student');
+        let userObj: any = null;
+
+        try {
+          const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+          try {
+            const snap = await getDoc(doc(db, 'users', cred.user.uid));
+            if (snap.exists()) {
+              userObj = snap.data();
+            }
+          } catch (e) {
+            console.warn('Firestore getDoc user warning:', e);
+          }
+          if (!userObj) {
+            userObj = { id: cred.user.uid, name: email.split('@')[0], email: email.trim(), role: 'student' };
+          }
+        } catch (authErr: any) {
+          const code = authErr?.code || '';
+          console.warn('Firebase Auth sign-in warning:', authErr);
+
+          if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
+            setError('Incorrect email or password. Please try again.');
+            setLoading(false);
+            return;
+          }
+          if (code === 'auth/invalid-email') {
+            setError('Please enter a valid email address.');
+            setLoading(false);
+            return;
+          }
+
+          // Local matching fallback for offline/demo sessions
+          try {
+            const existing: any[] = JSON.parse(localStorage.getItem('shiksha_students') || '[]');
+            const localMatch = existing.find((s) => s.email === email.trim());
+            if (localMatch) {
+              userObj = localMatch;
+            }
+          } catch { /* ignore */ }
+
+          if (!userObj) {
+            userObj = { id: `usr_${Date.now()}`, name: email.split('@')[0], email: email.trim(), role: 'student' };
+          }
+        }
+
+        localStorage.setItem('shiksha_user', JSON.stringify(userObj));
+        navigate(userObj.role === 'teacher' ? '/teacher' : '/student');
       }
     } catch (err: any) {
-      const code = err?.code ?? '';
-      setError(
-        code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')
-          ? 'Incorrect email or password. Please try again.'
-          : code.includes('email-already-in-use')
-          ? 'An account with this email already exists.'
-          : code.includes('weak-password')
-          ? 'Password must be at least 6 characters.'
-          : 'Authentication failed. Please try again.'
-      );
+      console.error('Auth error:', err);
+      setError(err?.message || 'Authentication failed. Please try again.');
     } finally {
       setLoading(false);
     }

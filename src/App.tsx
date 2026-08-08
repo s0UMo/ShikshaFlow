@@ -5,9 +5,10 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { RefreshCw } from 'lucide-react';
 
 // Production Code-Splitting with Lazy Page Loading
-const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
-const StudentQuiz = lazy(() => import('./pages/StudentQuiz').then(m => ({ default: m.StudentQuiz })));
-const TeacherDashboard = lazy(() => import('./pages/TeacherDashboard').then(m => ({ default: m.TeacherDashboard })));
+const Login           = lazy(() => import('./pages/Login').then(m           => ({ default: m.Login           })));
+const StudentDashboard= lazy(() => import('./pages/StudentDashboard').then(m=> ({ default: m.StudentDashboard })));
+const StudentQuiz     = lazy(() => import('./pages/StudentQuiz').then(m     => ({ default: m.StudentQuiz     })));
+const TeacherDashboard= lazy(() => import('./pages/TeacherDashboard').then(m=> ({ default: m.TeacherDashboard})));
 
 const LoadingFallback: React.FC = () => (
   <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3">
@@ -58,6 +59,14 @@ export const App: React.FC = () => {
               <Route path="/login" element={<Login />} />
               <Route
                 path="/student"
+                element={
+                  <ProtectedRoute requiredRole="student">
+                    <StudentDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/student/quiz"
                 element={
                   <ProtectedRoute requiredRole="student">
                     <StudentQuiz />

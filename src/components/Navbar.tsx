@@ -6,12 +6,28 @@ import { getQueuedAttemptsCount, syncOfflineQueueToFirestore } from '../services
 export const Navbar: React.FC = () => {
   const navigate  = useNavigate();
   const location  = useLocation();
-  const [isOnline, setIsOnline]     = useState(navigator.onLine);
+  const [isOnline, setIsOnline]       = useState(navigator.onLine);
   const [queuedCount, setQueuedCount] = useState<number>(0);
-  const [isSyncing, setIsSyncing]   = useState<boolean>(false);
+  const [isSyncing, setIsSyncing]     = useState<boolean>(false);
 
-  const currentUserRaw = localStorage.getItem('shiksha_user');
-  const user = currentUserRaw ? JSON.parse(currentUserRaw) : null;
+  // Reactive auth state — re-reads whenever localStorage changes (login/logout)
+  const [user, setUser] = useState<{ id: string; name: string; role: string } | null>(() => {
+    try { const raw = localStorage.getItem('shiksha_user'); return raw ? JSON.parse(raw) : null; } catch { return null; }
+  });
+
+  useEffect(() => {
+    const syncUser = () => {
+      try {
+        const raw = localStorage.getItem('shiksha_user');
+        setUser(raw ? JSON.parse(raw) : null);
+      } catch { setUser(null); }
+    };
+    window.addEventListener('storage', syncUser);
+    // Also poll every 500ms so same-tab login/logout is reflected immediately
+    const poll = setInterval(syncUser, 500);
+    return () => { window.removeEventListener('storage', syncUser); clearInterval(poll); };
+  }, []);
+
 
   useEffect(() => {
     updateQueueCount();
@@ -64,29 +80,34 @@ export const Navbar: React.FC = () => {
           </span>
         </Link>
 
-        {/* Navigation (authenticated only) */}
+        {/* Navigation — only visible when authenticated */}
         {user && (
           <div className="hidden md:flex items-center gap-1 bg-[#141414] p-1 rounded-lg border border-white/[0.05]">
-            <Link to="/student"
-              className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md font-medium transition-all ${
-                location.pathname === '/student'
-                  ? 'bg-[#3ecf8e] text-[#0a0a0a] font-semibold shadow-sm'
-                  : 'text-[#9ca3af] hover:text-white'
-              }`}>
-              <GraduationCap className="w-3.5 h-3.5" />
-              <span>Student Portal</span>
-            </Link>
-            <Link to="/teacher"
-              className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md font-medium transition-all ${
-                location.pathname === '/teacher'
-                  ? 'bg-purple-500 text-white font-semibold shadow-sm'
-                  : 'text-[#9ca3af] hover:text-white'
-              }`}>
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              <span>Teacher Dashboard</span>
-            </Link>
+            {user.role !== 'teacher' && (
+              <Link to="/student"
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md font-medium transition-all ${
+                  location.pathname === '/student'
+                    ? 'bg-[#3ecf8e] text-[#0a0a0a] font-semibold shadow-sm'
+                    : 'text-[#9ca3af] hover:text-white'
+                }`}>
+                <GraduationCap className="w-3.5 h-3.5" />
+                <span>Student Portal</span>
+              </Link>
+            )}
+            {user.role === 'teacher' && (
+              <Link to="/teacher"
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md font-medium transition-all ${
+                  location.pathname === '/teacher'
+                    ? 'bg-purple-500 text-white font-semibold shadow-sm'
+                    : 'text-[#9ca3af] hover:text-white'
+                }`}>
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                <span>Teacher Dashboard</span>
+              </Link>
+            )}
           </div>
         )}
+
 
         {/* Status & User Controls */}
         <div className="flex items-center gap-3">

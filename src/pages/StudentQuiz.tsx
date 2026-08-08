@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
-  CheckCircle2, XCircle, ArrowRight,
-  Sparkles, Trophy, Clock, BrainCircuit, Flame, Award
+  CheckCircle2, XCircle, ArrowRight, ArrowLeft,
+  Sparkles, Trophy, Clock, BrainCircuit, Flame, Lock, X
 } from 'lucide-react';
 import type { Question, MathTopic, DifficultyTier, StudentProgress, Attempt } from '../types/schema';
 import { SEED_QUESTIONS } from '../data/seedQuestions';
@@ -12,6 +12,18 @@ import { doc, setDoc, collection, addDoc } from 'firebase/firestore';
 import { queueAttemptOffline, syncOfflineQueueToFirestore } from '../services/offlineDb';
 import { checkBadgesToAward, BADGE_DEFINITIONS } from '../services/badgeService';
 import type { Badge } from '../services/badgeService';
+
+// Badge color map: id -> tailwind gradient + glow classes
+const BADGE_COLORS: Record<string, { bg: string; border: string; glow: string; text: string }> = {
+  streak_3:        { bg: 'from-amber-500/30 to-orange-600/20',   border: 'border-amber-500/50',   glow: 'shadow-amber-500/40',  text: 'text-amber-300' },
+  streak_5:        { bg: 'from-purple-500/30 to-pink-600/20',    border: 'border-purple-500/50',  glow: 'shadow-purple-500/40', text: 'text-purple-300' },
+  fractions_master:{ bg: 'from-emerald-500/30 to-teal-600/20',  border: 'border-emerald-500/50', glow: 'shadow-emerald-500/40',text: 'text-emerald-300' },
+  ratios_master:   { bg: 'from-blue-500/30 to-indigo-600/20',   border: 'border-blue-500/50',    glow: 'shadow-blue-500/40',   text: 'text-blue-300' },
+  geometry_master: { bg: 'from-violet-500/30 to-purple-600/20', border: 'border-violet-500/50',  glow: 'shadow-violet-500/40', text: 'text-violet-300' },
+  decimals_master: { bg: 'from-cyan-500/30 to-blue-600/20',     border: 'border-cyan-500/50',    glow: 'shadow-cyan-500/40',   text: 'text-cyan-300' },
+};
+
+const ALL_BADGE_IDS = Object.keys(BADGE_DEFINITIONS);
 
 const TOPICS: MathTopic[] = ['fractions', 'ratios', 'geometry', 'decimals'];
 
@@ -29,9 +41,13 @@ const TIER_STYLES: Record<DifficultyTier, string> = {
 };
 
 export const StudentQuiz: React.FC = () => {
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const location  = useLocation();
   const currentUserRaw = localStorage.getItem('shiksha_user');
   const user = currentUserRaw ? JSON.parse(currentUserRaw) : null;
+
+  // Accept a pre-selected topic from dashboard navigation state
+  const initialTopic: MathTopic = (location.state as any)?.topic ?? 'fractions';
 
   useEffect(() => {
     if (!user) navigate('/login', { replace: true });
@@ -39,7 +55,7 @@ export const StudentQuiz: React.FC = () => {
 
   if (!user) return null;
 
-  const [selectedTopic, setSelectedTopic] = useState<MathTopic>('fractions');
+  const [selectedTopic, setSelectedTopic] = useState<MathTopic>(initialTopic);
   const [currentTier, setCurrentTier]     = useState<DifficultyTier>('easy');
   const [rollingHistory, setRollingHistory] = useState<boolean[]>([]);
   const [answeredIds, setAnsweredIds]     = useState<string[]>([]);
@@ -53,8 +69,10 @@ export const StudentQuiz: React.FC = () => {
   const [isCorrect, setIsCorrect]                     = useState<boolean>(false);
   const [tierMessage, setTierMessage]                 = useState<string | null>(null);
   const [newlyUnlockedBadge, setNewlyUnlockedBadge]   = useState<Badge | null>(null);
+  const [toastVisible, setToastVisible]               = useState<boolean>(false);
   const [lastResponseTimeMs, setLastResponseTimeMs]   = useState<number>(0);
   const [startTime, setStartTime]                     = useState<number>(Date.now());
+  const toastTimerRef                                 = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { loadTopicProgress(selectedTopic); }, [selectedTopic]);
 
@@ -114,7 +132,12 @@ export const StudentQuiz: React.FC = () => {
 
     const { updatedBadges, newlyAwarded } = checkBadgesToAward(earnedBadges, newStreak, selectedTopic, nextTier);
     setEarnedBadges(updatedBadges);
-    if (newlyAwarded.length > 0) setNewlyUnlockedBadge(newlyAwarded[0]);
+    if (newlyAwarded.length > 0) {
+      setNewlyUnlockedBadge(newlyAwarded[0]);
+      setToastVisible(true);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => setToastVisible(false), 4500);
+    }
 
     if (engineResult.promoted) setTierMessage(`🎉 Level Up! Promoted to ${nextTier.toUpperCase()}`);
     else if (engineResult.demoted) setTierMessage(`💡 Adjusted to ${nextTier.toUpperCase()} for practice`);
@@ -182,6 +205,21 @@ export const StudentQuiz: React.FC = () => {
   return (
     <div className="w-full max-w-3xl mx-auto animate-fade-in pb-16 space-y-5">
 
+      {/* ── BACK / HEADER ── */}
+      <div className="flex items-center justify-between">
+        <button onClick={() => navigate('/student')}
+          className="flex items-center gap-1.5 text-xs text-[#9ca3af] hover:text-white transition-colors group">
+          <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+          Back to Dashboard
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-[#52525b] font-mono">{sessionCount} answered this session</span>
+          <span className={`px-2.5 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-wider ${TIER_STYLES[currentTier]}`}>
+            {currentTier}
+          </span>
+        </div>
+      </div>
+
       {/* ── TOPIC SELECTOR ── */}
       <div className="card-feature-light p-2 flex items-center gap-1 overflow-x-auto">
         {TOPICS.map((topic) => (
@@ -200,62 +238,99 @@ export const StudentQuiz: React.FC = () => {
         ))}
       </div>
 
-      {/* ── SESSION STATS BAR ── */}
+      {/* ── STREAK & USER BAR ── */}
       <div className="flex items-center justify-between px-1">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-xs text-[#9ca3af]">
-            <BrainCircuit className="w-4 h-4 text-[#3ecf8e]" />
-            <span className="font-medium text-white">{user.name}</span>
-          </div>
-          <div className="hidden sm:flex items-center gap-1 text-xs text-[#52525b]">
-            <span>{sessionCount} answered this session</span>
-          </div>
+        <div className="flex items-center gap-2 text-xs text-[#9ca3af]">
+          <BrainCircuit className="w-4 h-4 text-[#3ecf8e]" />
+          <span className="font-medium text-white">{user.name}</span>
         </div>
-
-        <div className="flex items-center gap-2">
-          {earnedBadges.length > 0 && (
-            <div className="hidden sm:flex items-center gap-1">
-              {earnedBadges.slice(0, 4).map((badgeId) => {
-                const b = BADGE_DEFINITIONS[badgeId];
-                return b ? (
-                  <span key={badgeId} title={`${b.name}: ${b.description}`}
-                    className="w-6 h-6 rounded-full bg-[#1c1c1c] border border-white/10 flex items-center justify-center text-sm">
-                    {b.icon}
-                  </span>
-                ) : null;
-              })}
-            </div>
-          )}
-
-          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold ${
-            streakCount >= 3 ? 'bg-amber-500/20 text-amber-300 border-amber-500/30 animate-pulse' : 'bg-[#1c1c1c] text-[#9ca3af] border-white/[0.06]'
-          }`}>
-            <Flame className={`w-3.5 h-3.5 ${streakCount >= 3 ? 'text-amber-400 fill-amber-400' : 'text-[#52525b]'}`} />
-            <span>{streakCount}</span>
-          </div>
-
-          <span className={`px-2.5 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-wider ${TIER_STYLES[currentTier]}`}>
-            {currentTier}
-          </span>
+        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold ${
+          streakCount >= 3 ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-[#1c1c1c] text-[#9ca3af] border-white/[0.06]'
+        }`}>
+          <Flame className={`w-3.5 h-3.5 ${streakCount >= 3 ? 'text-amber-400 fill-amber-400' : 'text-[#52525b]'}`} />
+          <span>{streakCount} streak</span>
         </div>
       </div>
 
-      {/* ── BADGE UNLOCK TOAST ── */}
-      {newlyUnlockedBadge && (
-        <div className="p-4 rounded-xl bg-gradient-to-r from-amber-500/20 via-purple-500/10 to-pink-500/20 border border-amber-500/40 flex items-center gap-4 animate-scale-in">
-          <div className="w-11 h-11 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-2xl shrink-0">
-            {newlyUnlockedBadge.icon}
+      {/* ── ACHIEVEMENT BADGE SHELF ── */}
+      <div className="card-feature-light p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-3.5 h-3.5 text-[#3ecf8e]" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-[#52525b]">Achievements</span>
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-300 flex items-center gap-1 mb-0.5">
-              <Award className="w-3 h-3" /> Badge Unlocked!
-            </div>
-            <div className="text-sm font-bold text-white">{newlyUnlockedBadge.name}</div>
-            <div className="text-xs text-[#9ca3af] truncate">{newlyUnlockedBadge.description}</div>
-          </div>
-          <Sparkles className="w-5 h-5 text-amber-400 shrink-0" style={{ animation: 'spin-slow 3s linear infinite' }} />
+          <span className="text-[11px] text-[#52525b]">
+            {earnedBadges.length}<span className="text-[#3f3f46]">/{ALL_BADGE_IDS.length}</span>
+          </span>
         </div>
-      )}
+
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          {ALL_BADGE_IDS.map((badgeId) => {
+            const badge   = BADGE_DEFINITIONS[badgeId];
+            const earned  = earnedBadges.includes(badgeId);
+            const colors  = BADGE_COLORS[badgeId];
+            return (
+              <div key={badgeId} title={`${badge.name}: ${badge.description}`}
+                className={`relative flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all ${
+                  earned
+                    ? `bg-gradient-to-b ${colors.bg} ${colors.border} shadow-lg ${colors.glow}`
+                    : 'bg-[#141414] border-white/[0.04] opacity-40'
+                }`}>
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xl ${
+                  earned ? 'bg-black/20' : 'bg-[#1c1c1c]'
+                }`}>
+                  {earned ? badge.icon : <Lock className="w-3.5 h-3.5 text-[#3f3f46]" />}
+                </div>
+                <span className={`text-[10px] font-semibold text-center leading-tight ${
+                  earned ? colors.text : 'text-[#3f3f46]'
+                }`}>
+                  {badge.name}
+                </span>
+                {earned && (
+                  <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#3ecf8e] flex items-center justify-center">
+                    <span className="text-[8px] text-[#0a0a0a] font-bold">✓</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── BADGE UNLOCK FLOATING TOAST ── */}
+      {newlyUnlockedBadge && toastVisible && (() => {
+        const colors = BADGE_COLORS[newlyUnlockedBadge.id];
+        return (
+          <div className="fixed top-20 right-4 z-50 max-w-xs w-full animate-slide-down">
+            <div className={`relative rounded-2xl border bg-gradient-to-br ${colors.bg} ${colors.border} backdrop-blur-xl shadow-2xl ${colors.glow} overflow-hidden`}>
+              {/* Shimmer bar */}
+              <div className="absolute bottom-0 left-0 h-0.5 w-full bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                style={{ animation: 'shimmer 2s linear infinite', backgroundSize: '200% auto' }} />
+
+              <div className="p-4 flex items-center gap-3.5">
+                {/* Badge icon with glow */}
+                <div className={`relative w-14 h-14 rounded-2xl bg-black/30 border ${colors.border} flex items-center justify-center text-3xl shrink-0`}>
+                  {newlyUnlockedBadge.icon}
+                  <div className={`absolute inset-0 rounded-2xl opacity-30 blur-md bg-gradient-to-br ${colors.bg}`} />
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className={`text-[10px] font-bold uppercase tracking-widest mb-0.5 flex items-center gap-1 ${colors.text}`}>
+                    <span>⬡</span> Achievement Unlocked
+                  </div>
+                  <div className="text-base font-bold text-white leading-tight">{newlyUnlockedBadge.name}</div>
+                  <div className="text-[11px] text-white/60 mt-0.5 leading-snug">{newlyUnlockedBadge.description}</div>
+                </div>
+
+                <button onClick={() => setToastVisible(false)}
+                  className="shrink-0 p-1 rounded-lg text-white/30 hover:text-white/70 transition-colors self-start">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── MAIN QUESTION CARD ── */}
       {currentQuestion ? (
