@@ -1,7 +1,87 @@
+/**
+ * Sanitizes math symbols, fractions, and units into natural spoken words
+ * so Web Speech API and Audio TTS engines produce clear, understandable speech.
+ */
+function sanitizeForSpeech(text: string, lang: 'hi' | 'en'): string {
+  let clean = text;
+
+  if (lang === 'hi') {
+    clean = clean
+      .replace(/1\/2/g, ' आधा ')
+      .replace(/1\/4/g, ' एक चौथाई ')
+      .replace(/3\/4/g, ' तीन चौथाई ')
+      .replace(/1\/3/g, ' एक तिहाई ')
+      .replace(/2\/3/g, ' दो तिहाई ')
+      .replace(/2\/5/g, ' दो बटा पांच ')
+      .replace(/1\/5/g, ' एक बटा पांच ')
+      .replace(/3\/5/g, ' तीन बटा पांच ')
+      .replace(/4\/5/g, ' चार बटा पांच ')
+      .replace(/1\/6/g, ' एक बटा छह ')
+      .replace(/2\/6/g, ' दो बटा छह ')
+      .replace(/3\/6/g, ' तीन बटा छह ')
+      .replace(/7\/3/g, ' सात बटा तीन ')
+      .replace(/3\/10/g, ' तीन बटा दस ')
+      .replace(/11\/15/g, ' ग्यारह बटा पंद्रह ')
+      .replace(/7\/15/g, ' सात बटा पंद्रह ')
+      .replace(/6\/20/g, ' छह बटा बीस ')
+      .replace(/3\/20/g, ' तीन बटा बीस ')
+      .replace(/8\/12/g, ' आठ बटा बारह ')
+      .replace(/2:3/g, ' दो अनुपात तीन ')
+      .replace(/3:4/g, ' तीन अनुपात चार ')
+      .replace(/5:2/g, ' पांच अनुपात दो ')
+      .replace(/4:8/g, ' चार अनुपात आठ ')
+      .replace(/10:15/g, ' दस अनुपात पंद्रह ')
+      .replace(/₹\s*(\d+)/g, ' $1 रुपये ')
+      .replace(/₹/g, ' रुपये ')
+      .replace(/(\d+)\s*cm²/g, ' $1 वर्ग सेंटीमीटर ')
+      .replace(/(\d+)\s*cm/g, ' $1 सेंटीमीटर ')
+      .replace(/(\d+)\s*km\/h/g, ' $1 किलोमीटर प्रति घंटा ')
+      .replace(/(\d+)\s*km/g, ' $1 किलोमीटर ')
+      .replace(/(\d+)\s*g\b/g, ' $1 ग्राम ')
+      .replace(/(\d+)°/g, ' $1 डिग्री ')
+      .replace(/\+/g, ' जमा ')
+      .replace(/\-/g, ' घटाव ')
+      .replace(/×/g, ' गुणा ')
+      .replace(/÷/g, ' भाग ')
+      .replace(/=/g, ' बराबर ');
+  } else {
+    clean = clean
+      .replace(/1\/2/g, ' one half ')
+      .replace(/1\/4/g, ' one fourth ')
+      .replace(/3\/4/g, ' three fourths ')
+      .replace(/1\/3/g, ' one third ')
+      .replace(/2\/3/g, ' two thirds ')
+      .replace(/2\/5/g, ' two fifths ')
+      .replace(/1\/5/g, ' one fifth ')
+      .replace(/3\/5/g, ' three fifths ')
+      .replace(/4\/5/g, ' four fifths ')
+      .replace(/1\/6/g, ' one sixth ')
+      .replace(/2\/6/g, ' two sixths ')
+      .replace(/7\/3/g, ' seven thirds ')
+      .replace(/2:3/g, ' two to three ')
+      .replace(/3:4/g, ' three to four ')
+      .replace(/5:2/g, ' five to two ')
+      .replace(/₹\s*(\d+)/g, ' $1 rupees ')
+      .replace(/₹/g, ' rupees ')
+      .replace(/(\d+)\s*cm²/g, ' $1 square centimeters ')
+      .replace(/(\d+)\s*cm/g, ' $1 centimeters ')
+      .replace(/(\d+)\s*km\/h/g, ' $1 kilometers per hour ')
+      .replace(/(\d+)\s*km/g, ' $1 kilometers ')
+      .replace(/(\d+)\s*g\b/g, ' $1 grams ')
+      .replace(/(\d+)°/g, ' $1 degrees ')
+      .replace(/\+/g, ' plus ')
+      .replace(/\-/g, ' minus ')
+      .replace(/×/g, ' times ')
+      .replace(/÷/g, ' divided by ')
+      .replace(/=/g, ' equals ');
+  }
+
+  return clean.replace(/\s+/g, ' ').trim();
+}
+
 class TTSService {
   private synth: SpeechSynthesis | null = null;
   private voices: SpeechSynthesisVoice[] = [];
-  private currentAudio: HTMLAudioElement | null = null;
 
   constructor() {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -22,10 +102,9 @@ class TTSService {
   public speak(
     text: string, 
     lang: 'hi-IN' | 'en-IN' | 'en-US' = 'hi-IN',
-    phoneticFallbackText?: string
+    _phoneticFallbackText?: string
   ): Promise<void> {
     return new Promise((resolve) => {
-      // Stop any active audio/speech first
       this.stop();
 
       if (!text || text.trim().length === 0) {
@@ -35,90 +114,52 @@ class TTSService {
 
       this.loadVoices();
 
-      const matchedHindiVoice = this.voices.find(
-        (v) => v.lang.toLowerCase().startsWith('hi') || v.name.toLowerCase().includes('hindi') || v.name.toLowerCase().includes('kalpana') || v.name.toLowerCase().includes('hemant')
-      );
+      const isHindi = lang.startsWith('hi');
+      const spokenText = sanitizeForSpeech(text, isHindi ? 'hi' : 'en');
 
-      // 1. If Hindi mode and native Hindi voice is installed on OS
-      if (lang.startsWith('hi') && this.synth && matchedHindiVoice) {
-        if (this.synth.paused) {
-          this.synth.resume();
-        }
-
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'hi-IN';
-        utterance.voice = matchedHindiVoice;
-        utterance.rate = 0.85;
-
-        utterance.onend = () => resolve();
-        utterance.onerror = () => {
-          this.fallbackAudioTTS(text, 'hi').then(resolve);
-        };
-
-        this.synth.speak(utterance);
-        return;
-      }
-
-      // 2. If Hindi mode but NO native Hindi voice is installed on Windows:
-      // Use phonetic Hinglish text ("Yadi 4 barabar bhagon...") so English voice pronounces the full Hindi sentence!
-      if (lang.startsWith('hi') && phoneticFallbackText && this.synth) {
-        if (this.synth.paused) {
-          this.synth.resume();
-        }
-
-        const utterance = new SpeechSynthesisUtterance(phoneticFallbackText);
-        utterance.lang = 'en-IN';
-        utterance.rate = 0.85;
-
-        // Try using an Indian English or general English voice
-        const indianEnVoice = this.voices.find((v) => v.lang.includes('en-IN') || v.name.includes('India'));
-        if (indianEnVoice) {
-          utterance.voice = indianEnVoice;
-        }
-
-        utterance.onend = () => resolve();
-        utterance.onerror = () => {
-          this.fallbackAudioTTS(phoneticFallbackText, 'hi').then(resolve);
-        };
-
-        this.synth.speak(utterance);
-        return;
-      }
-
-      // 3. Google Translate TTS audio fallback endpoint
-      const speechText = (lang.startsWith('hi') && phoneticFallbackText) ? phoneticFallbackText : text;
-      this.fallbackAudioTTS(speechText, lang.startsWith('hi') ? 'hi' : 'en').then(resolve);
-    });
-  }
-
-  private fallbackAudioTTS(text: string, lang: string): Promise<void> {
-    return new Promise((resolve) => {
-      try {
-        const encodedText = encodeURIComponent(text.slice(0, 200));
-        const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=${lang}&client=tw-ob`;
-
-        const audio = new Audio(audioUrl);
-        this.currentAudio = audio;
-        audio.playbackRate = 0.9;
-
-        audio.onended = () => {
-          this.currentAudio = null;
-          resolve();
-        };
-
-        audio.onerror = () => {
-          this.currentAudio = null;
-          resolve();
-        };
-
-        audio.play().catch((err) => {
-          console.warn('Audio play error:', err);
-          resolve();
-        });
-      } catch (err) {
-        console.warn('Audio fallback error:', err);
+      if (!this.synth) {
+        console.warn('Speech synthesis not supported.');
         resolve();
+        return;
       }
+
+      if (this.synth.paused) {
+        this.synth.resume();
+      }
+
+      const utterance = new SpeechSynthesisUtterance(spokenText);
+      utterance.lang = lang;
+      utterance.rate = 0.9; // Calm, clear learning speed
+      utterance.pitch = 1.0;
+
+      // Select highest quality voice available
+      const preferredVoice = this.voices.find((v) => {
+        const vName = v.name.toLowerCase();
+        const vLang = v.lang.toLowerCase();
+        if (isHindi) {
+          return (vLang.includes('hi') || vName.includes('hindi') || vName.includes('kalpana') || vName.includes('swara') || vName.includes('hemant')) && (vName.includes('natural') || vName.includes('online') || vName.includes('google'));
+        } else {
+          return (vLang.includes('en-in') || vLang.includes('en-us') || vName.includes('india')) && (vName.includes('natural') || vName.includes('online') || vName.includes('google'));
+        }
+      }) || this.voices.find((v) => {
+        const vLang = v.lang.toLowerCase();
+        return isHindi ? vLang.includes('hi') : vLang.includes('en');
+      });
+
+      if (preferredVoice) {
+        utterance.voice = preferredVoice;
+      }
+
+      utterance.onend = () => {
+        resolve();
+      };
+
+      utterance.onerror = (err) => {
+        console.warn('Speech synthesis error:', err);
+        resolve();
+      };
+
+      this.synth.speak(utterance);
     });
   }
 
@@ -128,16 +169,10 @@ class TTSService {
         this.synth.cancel();
       }
     }
-    if (this.currentAudio) {
-      this.currentAudio.pause();
-      this.currentAudio = null;
-    }
   }
 
   public isSpeaking(): boolean {
-    const isSynthSpeaking = !!(this.synth && (this.synth.speaking || this.synth.pending));
-    const isAudioPlaying = !!(this.currentAudio && !this.currentAudio.paused);
-    return isSynthSpeaking || isAudioPlaying;
+    return !!(this.synth && (this.synth.speaking || this.synth.pending));
   }
 }
 
