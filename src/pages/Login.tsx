@@ -12,16 +12,27 @@ import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
-function friendlyAuthError(code: string): string {
-  if (code.includes('email-already-in-use'))   return 'An account with this email already exists. Please sign in instead.';
-  if (code.includes('weak-password'))           return 'Password must be at least 6 characters.';
-  if (code.includes('invalid-email'))           return 'Please enter a valid email address.';
-  if (code.includes('invalid-credential'))      return 'Incorrect email or password. Please try again.';
-  if (code.includes('wrong-password'))          return 'Incorrect email or password. Please try again.';
-  if (code.includes('user-not-found'))          return 'No account found with this email. Please register first.';
-  if (code.includes('too-many-requests'))       return 'Too many failed attempts. Please try again later.';
-  if (code.includes('network-request-failed'))  return 'No internet connection. Please check your network.';
-  return 'Authentication failed. Please try again.';
+// Covers Firebase Auth error codes from SDK v9–v12
+function friendlyAuthError(err: any): string {
+  const code: string = err?.code ?? '';
+  // Always log the raw code so it's visible in DevTools
+  console.error('[Auth] Firebase error code:', code, err?.message);
+
+  if (code.includes('email-already-in-use'))         return 'An account with this email already exists. Please sign in instead.';
+  if (code.includes('weak-password'))                return 'Password must be at least 6 characters.';
+  if (code.includes('invalid-email'))                return 'Please enter a valid email address.';
+  // Firebase v12 combines wrong-password + user-not-found into this code:
+  if (code.includes('invalid-login-credentials'))    return 'Incorrect email or password. Please try again.';
+  if (code.includes('invalid-credential'))           return 'Incorrect email or password. Please try again.';
+  if (code.includes('wrong-password'))               return 'Incorrect email or password. Please try again.';
+  if (code.includes('user-not-found'))               return 'No account found with this email. Please create an account first.';
+  if (code.includes('user-disabled'))                return 'This account has been disabled. Please contact support.';
+  if (code.includes('too-many-requests'))            return 'Too many failed attempts. Please wait a moment and try again.';
+  if (code.includes('network-request-failed'))       return 'No internet connection. Please check your network and try again.';
+  if (code.includes('operation-not-allowed'))        return 'Email/password sign-in is not enabled. Please contact the administrator.';
+  if (code.includes('requires-recent-login'))        return 'Please sign out and sign back in to continue.';
+  // Show raw code as last resort so it is never a mystery
+  return code ? `Sign-in failed (${code}). Please try again.` : 'Sign-in failed. Please try again.';
 }
 
 // ─── component ───────────────────────────────────────────────────────────────
@@ -67,7 +78,7 @@ export const Login: React.FC = () => {
         createdAt: new Date().toISOString(),
       };
 
-      // 2. Write user profile to Firestore
+      // 2. Write user profile to Firestore (contains role info)
       try {
         await setDoc(doc(db, 'users', uid), newUser);
       } catch (dbErr) {
@@ -90,8 +101,7 @@ export const Login: React.FC = () => {
 
       navigate(role === 'teacher' ? '/teacher' : '/student');
     } catch (err: any) {
-      const code = err?.code ?? '';
-      setError(friendlyAuthError(code) || err?.message || 'Registration failed.');
+      setError(friendlyAuthError(err));
     } finally {
       setLoading(false);
     }
@@ -159,8 +169,7 @@ export const Login: React.FC = () => {
 
       navigate(userObj.role === 'teacher' ? '/teacher' : '/student');
     } catch (err: any) {
-      const code = err?.code ?? '';
-      setError(friendlyAuthError(code) || err?.message || 'Sign-in failed.');
+      setError(friendlyAuthError(err));
     } finally {
       setLoading(false);
     }
