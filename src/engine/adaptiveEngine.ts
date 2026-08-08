@@ -1,4 +1,4 @@
-import type { DifficultyTier, MathTopic, Question, StudentProgress } from '../types/schema';
+import type { DifficultyTier, MathTopic, Question } from '../types/schema';
 
 export interface AdaptiveEngineInput {
   topic: MathTopic;
@@ -26,8 +26,6 @@ export function calculateNextTier(
   currentTier: DifficultyTier,
   rollingHistory: boolean[]
 ): { nextTier: DifficultyTier; promoted: boolean; demoted: boolean; reason: string } {
-  const historyLen = rollingHistory.length;
-  
   // Check for 3 consecutive correct answers at the end of history
   const last3 = rollingHistory.slice(-3);
   const is3CorrectInRow = last3.length === 3 && last3.every((res) => res === true);

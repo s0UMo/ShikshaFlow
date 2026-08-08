@@ -8,8 +8,6 @@ export function runSimulation() {
   let rollingHistory: boolean[] = [];
   const answeredQuestionIds: string[] = [];
 
-  // Simulated answers for 20 questions (simulating a learning curve)
-  // Student starts answering correctly, gets promoted to Medium, then Hard, makes a few mistakes, gets demoted, and recovers.
   const simulatedAnswers = [
     true, true, true,   // Q1-Q3: 3 correct at Easy -> Should promote to Medium
     true, true, true,   // Q4-Q6: 3 correct at Medium -> Should promote to Hard
@@ -28,7 +26,6 @@ export function runSimulation() {
   simulatedAnswers.forEach((isCorrect, index) => {
     const stepNumber = index + 1;
     
-    // Evaluate step
     const result = evaluateAdaptiveStep({
       topic,
       currentTier,
@@ -43,10 +40,7 @@ export function runSimulation() {
       answeredQuestionIds.push(answeredQuestion.id);
     }
 
-    // Append answer to rolling history
     rollingHistory.push(isCorrect);
-
-    // Update current tier for next iteration
     currentTier = result.nextTier;
 
     const statusBadge = isCorrect ? '✅ CORRECT  ' : '❌ INCORRECT';
@@ -70,7 +64,7 @@ export function runSimulation() {
   console.log('===============================================================\n');
 }
 
-// Run if executed directly
-if (typeof process !== 'undefined' && process.argv && process.argv[1]?.includes('simulateAdaptiveEngine')) {
+// Run if executed directly in Node environment
+if (typeof globalThis !== 'undefined' && 'process' in globalThis && (globalThis as any).process?.argv?.[1]?.includes('simulateAdaptiveEngine')) {
   runSimulation();
 }
