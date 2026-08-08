@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   CheckCircle2, XCircle, ArrowRight, 
-  Sparkles, Trophy, Clock, BrainCircuit
+  Sparkles, Trophy, Clock, BrainCircuit, Flame, Award
 } from 'lucide-react';
 import type { Question, MathTopic, DifficultyTier, StudentProgress, Attempt } from '../types/schema';
 import { SEED_QUESTIONS } from '../data/seedQuestions';
@@ -9,6 +9,8 @@ import { evaluateAdaptiveStep } from '../engine/adaptiveEngine';
 import { db } from '../services/firebase';
 import { doc, setDoc, collection, addDoc } from 'firebase/firestore';
 import { queueAttemptOffline, syncOfflineQueueToFirestore } from '../services/offlineDb';
+import { checkBadgesToAward, BADGE_DEFINITIONS } from '../services/badgeService';
+import type { Badge } from '../services/badgeService';
 
 export const StudentQuiz: React.FC = () => {
   // Active student user from session
@@ -20,12 +22,15 @@ export const StudentQuiz: React.FC = () => {
   const [currentTier, setCurrentTier] = useState<DifficultyTier>('easy');
   const [rollingHistory, setRollingHistory] = useState<boolean[]>([]);
   const [answeredIds, setAnsweredIds] = useState<string[]>([]);
+  const [streakCount, setStreakCount] = useState<number>(0);
+  const [earnedBadges, setEarnedBadges] = useState<string[]>([]);
 
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [isCorrect, setIsCorrect] = useState<boolean>(false);
   const [tierMessage, setTierMessage] = useState<string | null>(null);
+  const [newlyUnlockedBadge, setNewlyUnlockedBadge] = useState<Badge | null>(null);
 
   const [startTime, setStartTime] = useState<number>(Date.now());
   const [lastResponseTimeMs, setLastResponseTimeMs] = useState<number>(0);
@@ -37,7 +42,6 @@ export const StudentQuiz: React.FC = () => {
   }, [selectedTopic]);
 
   const loadTopicProgress = (topic: MathTopic) => {
-    // Check localStorage fallback progress
     const progressRaw = localStorage.getItem('shiksha_progress');
     let savedProgressList: StudentProgress[] = [];
     if (progressRaw) {
@@ -52,12 +56,17 @@ export const StudentQuiz: React.FC = () => {
     
     const initialTier: DifficultyTier = topicProgress ? topicProgress.currentTier : 'easy';
     const initialHistory = topicProgress ? topicProgress.rollingHistory : [];
+    const initialStreak = topicProgress ? topicProgress.streakCount : 0;
+    const initialBadges = topicProgress ? topicProgress.badges : [];
     
     setCurrentTier(initialTier);
     setRollingHistory(initialHistory);
+    setStreakCount(initialStreak);
+    setEarnedBadges(initialBadges);
     setSelectedOption(null);
     setIsSubmitted(false);
     setTierMessage(null);
+    setNewlyUnlockedBadge(null);
 
     // Pick first question using adaptive engine
     const result = evaluateAdaptiveStep({
@@ -90,6 +99,9 @@ export const StudentQuiz: React.FC = () => {
     const updatedHistory = [...rollingHistory, correct];
     setRollingHistory(updatedHistory);
 
+    const newStreak = correct ? streakCount + 1 : 0;
+    setStreakCount(newStreak);
+
     const newAnsweredIds = [...answeredIds, currentQuestion.id];
     setAnsweredIds(newAnsweredIds);
     setTotalAttemptCount((prev) => prev + 1);
@@ -106,6 +118,19 @@ export const StudentQuiz: React.FC = () => {
     const nextTier = engineResult.nextTier;
     setCurrentTier(nextTier);
 
+    // Gamification check: badges
+    const { updatedBadges, newlyAwarded } = checkBadgesToAward(
+      earnedBadges,
+      newStreak,
+      selectedTopic,
+      nextTier
+    );
+
+    setEarnedBadges(updatedBadges);
+    if (newlyAwarded.length > 0) {
+      setNewlyUnlockedBadge(newlyAwarded[0]);
+    }
+
     if (engineResult.promoted) {
       setTierMessage(`🎉 PROMOTED! You advanced to ${nextTier.toUpperCase()} difficulty!`);
     } else if (engineResult.demoted) {
@@ -115,7 +140,7 @@ export const StudentQuiz: React.FC = () => {
     }
 
     // Persist attempt to Firestore & LocalStorage
-    await persistAttempt(currentQuestion, correct, selectedOption, durationMs, nextTier, updatedHistory);
+    await persistAttempt(currentQuestion, correct, selectedOption, durationMs, nextTier, updatedHistory, newStreak, updatedBadges);
   };
 
   const persistAttempt = async (
@@ -124,7 +149,9 @@ export const StudentQuiz: React.FC = () => {
     optionIdx: number, 
     responseTimeMs: number,
     newTier: DifficultyTier,
-    updatedHistory: boolean[]
+    updatedHistory: boolean[],
+    newStreak: number,
+    updatedBadges: string[]
   ) => {
     const attempt: Attempt = {
       id: `attempt_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
@@ -161,12 +188,12 @@ export const StudentQuiz: React.FC = () => {
       studentId: user.id,
       topic: selectedTopic,
       currentTier: newTier,
-      rollingHistory: updatedHistory.slice(-5), // Keep last 5
+      rollingHistory: updatedHistory.slice(-5),
       rollingAccuracy,
       totalAttempts: (progressIndex >= 0 ? existingProgressList[progressIndex].totalAttempts : 0) + 1,
       correctCount: (progressIndex >= 0 ? existingProgressList[progressIndex].correctCount : 0) + (correct ? 1 : 0),
-      streakCount: correct ? (progressIndex >= 0 ? existingProgressList[progressIndex].streakCount + 1 : 1) : 0,
-      badges: progressIndex >= 0 ? existingProgressList[progressIndex].badges : [],
+      streakCount: newStreak,
+      badges: updatedBadges,
       lastUpdated: Date.now(),
     };
 
@@ -182,7 +209,6 @@ export const StudentQuiz: React.FC = () => {
       try {
         await addDoc(collection(db, 'attempts'), attempt);
         await setDoc(doc(db, 'studentProgress', updatedProgress.id), updatedProgress);
-        // Automatically drain IndexedDB queue upon online write success
         await syncOfflineQueueToFirestore();
       } catch (err) {
         console.warn('Firestore attempt write deferred to IndexedDB offline queue:', err);
@@ -194,6 +220,7 @@ export const StudentQuiz: React.FC = () => {
     setSelectedOption(null);
     setIsSubmitted(false);
     setTierMessage(null);
+    setNewlyUnlockedBadge(null);
 
     const engineResult = evaluateAdaptiveStep({
       topic: selectedTopic,
@@ -244,15 +271,41 @@ export const StudentQuiz: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Adaptive Tier & Student Header ── */}
+      {/* ── Gamified Header: Streak & Badges ── */}
       <div className="flex flex-wrap items-center justify-between gap-4 px-2">
-        <div className="flex items-center gap-2 text-xs text-[#9ca3af]">
-          <span>Student: <strong className="text-white">{user.name}</strong></span>
-          <span>•</span>
-          <span>Attempts: <strong className="text-white">{totalAttemptCount}</strong></span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-xs text-[#9ca3af]">
+            <span>Student: <strong className="text-white">{user.name}</strong></span>
+            <span>•</span>
+            <span>Attempts: <strong className="text-white">{totalAttemptCount}</strong></span>
+          </div>
+
+          {/* Answer Streak Pill */}
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold animate-pulse">
+            <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+            <span>{streakCount} Answer Streak</span>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Earned Badges Row */}
+          {earnedBadges.length > 0 && (
+            <div className="hidden sm:flex items-center gap-1">
+              {earnedBadges.map((badgeId) => {
+                const b = BADGE_DEFINITIONS[badgeId];
+                return b ? (
+                  <span
+                    key={badgeId}
+                    title={`${b.name}: ${b.description}`}
+                    className="w-7 h-7 rounded-full bg-[#1c1c1c] border border-white/10 flex items-center justify-center text-sm shadow-sm"
+                  >
+                    {b.icon}
+                  </span>
+                ) : null;
+              })}
+            </div>
+          )}
+
           <span className="text-xs text-[#9ca3af]">Adaptive Difficulty:</span>
           <span className={`text-xs px-3 py-1 rounded-full font-semibold uppercase tracking-wider border ${getTierColor(currentTier)}`}>
             {currentTier} Tier
@@ -260,12 +313,31 @@ export const StudentQuiz: React.FC = () => {
         </div>
       </div>
 
+      {/* ── UNLOCKED BADGE TOAST BANNER ── */}
+      {newlyUnlockedBadge && (
+        <div className="p-4 rounded-xl bg-gradient-to-r from-amber-500/20 via-purple-500/20 to-pink-500/20 border border-amber-500/40 text-white flex items-center justify-between shadow-2xl animate-scale-in">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-2xl border border-amber-500/40">
+              {newlyUnlockedBadge.icon}
+            </div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-amber-300 flex items-center gap-1">
+                <Award className="w-3.5 h-3.5" /> Badge Unlocked!
+              </div>
+              <div className="text-base font-bold text-white">{newlyUnlockedBadge.name}</div>
+              <div className="text-xs text-[#9ca3af]">{newlyUnlockedBadge.description}</div>
+            </div>
+          </div>
+          <Sparkles className="w-6 h-6 text-amber-400 animate-spin-slow" />
+        </div>
+      )}
+
       {/* ── Main Question Card ── */}
       {currentQuestion ? (
         <div className="card-feature-light p-6 md:p-8 space-y-6 border border-white/10 relative overflow-hidden">
 
           {/* Tier Promotion/Demotion Banner Alert */}
-          {tierMessage && (
+          {tierMessage && !newlyUnlockedBadge && (
             <div className="p-3 rounded-lg bg-[#3ecf8e]/10 border border-[#3ecf8e]/30 text-[#3ecf8e] text-xs font-semibold flex items-center justify-between animate-slide-down">
               <span>{tierMessage}</span>
               <Sparkles className="w-4 h-4 text-[#3ecf8e]" />

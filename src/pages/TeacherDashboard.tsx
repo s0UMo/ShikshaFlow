@@ -359,6 +359,32 @@ export const TeacherDashboard: React.FC = () => {
               })}
             </div>
 
+            {/* Badges Earned Row */}
+            <div className="p-4 rounded-xl bg-[#141414] border border-white/5 space-y-2">
+              <span className="text-xs font-semibold text-[#9ca3af] uppercase tracking-wider block">
+                Earned Badges & Achievements
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                {(() => {
+                  const allBadges = new Set<string>();
+                  topics.forEach(t => {
+                    const prog = getProgressForStudent(selectedStudent.id, t);
+                    if (prog?.badges) prog.badges.forEach(b => allBadges.add(b));
+                  });
+                  const badgeArr = Array.from(allBadges);
+                  if (badgeArr.length === 0) {
+                    return <span className="text-xs text-[#52525b]">No badges unlocked yet</span>;
+                  }
+                  return badgeArr.map(badgeId => (
+                    <span key={badgeId} className="px-2.5 py-1 rounded-full bg-[#1c1c1c] border border-white/10 text-xs text-white flex items-center gap-1.5">
+                      <span>🏆</span>
+                      <span className="capitalize">{badgeId.replace('_', ' ')}</span>
+                    </span>
+                  ));
+                })()}
+              </div>
+            </div>
+
             {/* Attempt Logs List */}
             <div className="space-y-3 pt-2">
               <h4 className="text-xs font-semibold uppercase tracking-wider text-[#9ca3af] flex items-center gap-2">
