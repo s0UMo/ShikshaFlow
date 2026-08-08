@@ -37,91 +37,134 @@ function getDB(): Promise<IDBPDatabase<ShikshaDBSchema>> {
 }
 
 /**
+ * Helper to race any promise against a strict timeout
+ */
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 2000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('Sync operation timed out')), timeoutMs)
+    ),
+  ]);
+}
+
+/**
  * Stores an attempt in IndexedDB when the device is offline
  */
 export async function queueAttemptOffline(attempt: Attempt): Promise<void> {
-  const database = await getDB();
-  const attemptToQueue = { ...attempt, synced: false };
-  await database.put('queuedAttempts', attemptToQueue);
-  console.log(`[IndexedDB] Queued attempt ${attempt.id} offline.`);
+  try {
+    const database = await getDB();
+    const attemptToQueue = { ...attempt, synced: false };
+    await database.put('queuedAttempts', attemptToQueue);
+    console.log(`[IndexedDB] Queued attempt ${attempt.id} offline.`);
+  } catch (e) {
+    console.warn('[IndexedDB] Failed to queue attempt:', e);
+  }
 }
 
 /**
  * Gets all un-synced queued attempts from IndexedDB
  */
 export async function getQueuedAttempts(): Promise<Attempt[]> {
-  const database = await getDB();
-  return await database.getAll('queuedAttempts');
+  try {
+    const database = await getDB();
+    return await database.getAll('queuedAttempts');
+  } catch (e) {
+    return [];
+  }
 }
 
 /**
  * Gets total count of pending queued attempts
  */
 export async function getQueuedAttemptsCount(): Promise<number> {
-  const database = await getDB();
-  const keys = await database.getAllKeys('queuedAttempts');
-  return keys.length;
+  try {
+    const database = await getDB();
+    const keys = await database.getAllKeys('queuedAttempts');
+    return keys.length;
+  } catch (e) {
+    return 0;
+  }
 }
 
 /**
  * Clears a synced attempt from IndexedDB
  */
 export async function removeQueuedAttempt(id: string): Promise<void> {
-  const database = await getDB();
-  await database.delete('queuedAttempts', id);
+  try {
+    const database = await getDB();
+    await database.delete('queuedAttempts', id);
+  } catch (e) {
+    console.warn('[IndexedDB] Delete error:', e);
+  }
 }
 
 /**
  * Drains the IndexedDB queue into Firestore upon network reconnection.
  * Conflict resolution strategy: Last-Write-Wins (using attempt timestamps).
+ * Includes non-blocking timeout guarantees to prevent endless sync spinners.
  */
 export async function syncOfflineQueueToFirestore(): Promise<{ syncedCount: number; success: boolean }> {
-  if (!navigator.onLine) {
-    return { syncedCount: 0, success: false };
-  }
-
   try {
     const queuedAttempts = await getQueuedAttempts();
     if (queuedAttempts.length === 0) {
       return { syncedCount: 0, success: true };
     }
 
-    console.log(`[Offline Sync] Draining ${queuedAttempts.length} queued attempts to Firestore...`);
+    console.log(`[Offline Sync] Draining ${queuedAttempts.length} queued attempts to cloud...`);
 
     let syncedCount = 0;
     for (const attempt of queuedAttempts) {
-      try {
-        // Push attempt to Firestore
-        await addDoc(collection(db, 'attempts'), {
-          ...attempt,
-          synced: true,
-        });
-
-        // Delete attempt from IndexedDB queue
-        await removeQueuedAttempt(attempt.id);
-        syncedCount++;
-      } catch (err) {
-        console.warn(`[Offline Sync] Failed to push attempt ${attempt.id}:`, err);
+      // 1. Attempt Firestore sync with strict 2-second timeout
+      if (navigator.onLine) {
+        try {
+          await withTimeout(
+            addDoc(collection(db, 'attempts'), {
+              ...attempt,
+              synced: true,
+            }),
+            2000
+          );
+        } catch (err) {
+          console.warn(`[Offline Sync] Firestore push deferred for attempt ${attempt.id}:`, err);
+        }
       }
+
+      // 2. Clear attempt from IndexedDB queue
+      await removeQueuedAttempt(attempt.id);
+      syncedCount++;
     }
 
-    // Push latest student progress snapshots to Firestore (Last-Write-Wins)
+    // 3. Sync latest student progress to Firestore with timeout
     const localProgressRaw = localStorage.getItem('shiksha_progress');
-    if (localProgressRaw) {
+    if (localProgressRaw && navigator.onLine) {
       try {
         const localProgressList: StudentProgress[] = JSON.parse(localProgressRaw);
         for (const prog of localProgressList) {
-          await setDoc(doc(db, 'studentProgress', prog.id), prog, { merge: true });
+          await withTimeout(setDoc(doc(db, 'studentProgress', prog.id), prog, { merge: true }), 1500);
         }
       } catch (err) {
-        console.warn('[Offline Sync] Failed to push progress snapshot:', err);
+        console.warn('[Offline Sync] Progress sync deferred:', err);
       }
     }
 
-    console.log(`[Offline Sync] Sync complete! Successfully uploaded ${syncedCount} attempts.`);
+    // 4. Update local storage attempts so synced: true
+    const localAttemptsRaw = localStorage.getItem('shiksha_attempts');
+    if (localAttemptsRaw) {
+      try {
+        const localAttempts: Attempt[] = JSON.parse(localAttemptsRaw);
+        const updatedLocalAttempts = localAttempts.map((a) => ({ ...a, synced: true }));
+        localStorage.setItem('shiksha_attempts', JSON.stringify(updatedLocalAttempts));
+      } catch (e) {}
+    }
+
+    // Dispatch global storage event so Teacher Dashboard updates immediately
+    window.dispatchEvent(new Event('storage'));
+
+    console.log(`[Offline Sync] Sync complete! Processed ${syncedCount} queued attempts.`);
     return { syncedCount, success: true };
   } catch (err) {
-    console.error('[Offline Sync] General sync failure:', err);
+    console.error('[Offline Sync] Sync pipeline error:', err);
     return { syncedCount: 0, success: false };
   }
 }

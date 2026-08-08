@@ -12,7 +12,6 @@ export const Navbar: React.FC = () => {
   const currentUserRaw = localStorage.getItem('shiksha_user');
   const user = currentUserRaw ? JSON.parse(currentUserRaw) : null;
 
-  // Poll IndexedDB queue count & set up network event listeners
   useEffect(() => {
     updateQueueCount();
 
@@ -44,24 +43,25 @@ export const Navbar: React.FC = () => {
       const count = await getQueuedAttemptsCount();
       setQueuedCount(count);
     } catch (e) {
-      // Fallback count from attempts in localStorage
-      const attemptsRaw = localStorage.getItem('shiksha_attempts');
-      if (attemptsRaw) {
-        try {
-          const attempts = JSON.parse(attemptsRaw);
-          const unSynced = attempts.filter((a: any) => !a.synced);
-          setQueuedCount(unSynced.length);
-        } catch (err) {}
-      }
+      setQueuedCount(0);
     }
   };
 
   const triggerSync = async () => {
+    if (isSyncing) return;
     setIsSyncing(true);
-    const result = await syncOfflineQueueToFirestore();
-    await updateQueueCount();
-    setTimeout(() => setIsSyncing(false), 800);
-    return result;
+    try {
+      await syncOfflineQueueToFirestore();
+      await updateQueueCount();
+    } catch (err) {
+      console.warn('Sync error:', err);
+    } finally {
+      // Guaranteed sync status clearance within 600ms
+      setTimeout(() => {
+        setIsSyncing(false);
+        updateQueueCount();
+      }, 600);
+    }
   };
 
   const handleLogout = () => {
