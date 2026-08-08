@@ -91,7 +91,7 @@ export const StudentQuiz: React.FC = () => {
 
     setIsSpeaking(true);
     const textToSpeak = speechLang === 'hi-IN' ? currentQuestion.questionTextHindi : currentQuestion.questionText;
-    await ttsService.speak(textToSpeak, speechLang);
+    await ttsService.speak(textToSpeak, speechLang, currentQuestion.questionTextHindiAudio);
     setIsSpeaking(false);
   };
 

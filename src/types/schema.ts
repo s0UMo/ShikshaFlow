@@ -18,7 +18,8 @@ export interface Question {
   topic: MathTopic;
   difficulty: DifficultyTier;
   questionText: string;
-  questionTextHindi: string; // Audio TTS & regional support
+  questionTextHindi: string;     // Hindi question for display
+  questionTextHindiAudio?: string; // Hinglish phonetic fallback for English TTS engines
   options: string[];
   correctAnswerIndex: number;
   explanation: string;
