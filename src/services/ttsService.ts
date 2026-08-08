@@ -1,6 +1,6 @@
 /**
  * Sanitizes math symbols, fractions, and units into natural spoken words
- * so Web Speech API and Audio TTS engines produce clear, understandable speech.
+ * so external TTS services produce studio-quality human speech.
  */
 function sanitizeForSpeech(text: string, lang: 'hi' | 'en'): string {
   let clean = text;
@@ -80,22 +80,12 @@ function sanitizeForSpeech(text: string, lang: 'hi' | 'en'): string {
 }
 
 class TTSService {
+  private currentAudio: HTMLAudioElement | null = null;
   private synth: SpeechSynthesis | null = null;
-  private voices: SpeechSynthesisVoice[] = [];
 
   constructor() {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       this.synth = window.speechSynthesis;
-      this.loadVoices();
-      if (this.synth.onvoiceschanged !== undefined) {
-        this.synth.onvoiceschanged = () => this.loadVoices();
-      }
-    }
-  }
-
-  private loadVoices(): void {
-    if (this.synth) {
-      this.voices = this.synth.getVoices();
     }
   }
 
@@ -112,58 +102,90 @@ class TTSService {
         return;
       }
 
-      this.loadVoices();
-
       const isHindi = lang.startsWith('hi');
       const spokenText = sanitizeForSpeech(text, isHindi ? 'hi' : 'en');
 
+      // 1. PRIMARY EXTERNAL TTS ENGINE: Amazon Polly "Aditi" (Studio Quality Neural Hindi Voice)
+      const encodedText = encodeURIComponent(spokenText.slice(0, 300));
+      // Voice: "Aditi" for Indian Hindi / English
+      const externalTtsUrl = `https://api.streamelements.com/kappa/v2/speech?voice=Aditi&text=${encodedText}`;
+
+      const audio = new Audio(externalTtsUrl);
+      this.currentAudio = audio;
+      audio.playbackRate = 0.95;
+
+      audio.onended = () => {
+        this.currentAudio = null;
+        resolve();
+      };
+
+      audio.onerror = () => {
+        console.warn('External Polly TTS error, trying secondary Google Translate TTS API...');
+        this.currentAudio = null;
+        this.speakGoogleTranslateTTS(spokenText, isHindi ? 'hi' : 'en').then(resolve);
+      };
+
+      audio.play().catch((err) => {
+        console.warn('External Polly TTS autoplay blocked, trying secondary Google Translate TTS...', err);
+        this.currentAudio = null;
+        this.speakGoogleTranslateTTS(spokenText, isHindi ? 'hi' : 'en').then(resolve);
+      });
+    });
+  }
+
+  private speakGoogleTranslateTTS(text: string, langCode: string): Promise<void> {
+    return new Promise((resolve) => {
+      try {
+        const encodedText = encodeURIComponent(text.slice(0, 250));
+        const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=${langCode}&client=tw-ob`;
+
+        const audio = new Audio(audioUrl);
+        this.currentAudio = audio;
+        audio.playbackRate = 0.9;
+
+        audio.onended = () => {
+          this.currentAudio = null;
+          resolve();
+        };
+
+        audio.onerror = () => {
+          this.currentAudio = null;
+          this.speakWebSpeechFallback(text, langCode === 'hi' ? 'hi-IN' : 'en-IN').then(resolve);
+        };
+
+        audio.play().catch(() => {
+          this.currentAudio = null;
+          this.speakWebSpeechFallback(text, langCode === 'hi' ? 'hi-IN' : 'en-IN').then(resolve);
+        });
+      } catch (err) {
+        this.speakWebSpeechFallback(text, langCode === 'hi' ? 'hi-IN' : 'en-IN').then(resolve);
+      }
+    });
+  }
+
+  private speakWebSpeechFallback(text: string, lang: string): Promise<void> {
+    return new Promise((resolve) => {
       if (!this.synth) {
-        console.warn('Speech synthesis not supported.');
         resolve();
         return;
       }
-
       if (this.synth.paused) {
         this.synth.resume();
       }
-
-      const utterance = new SpeechSynthesisUtterance(spokenText);
+      const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = lang;
-      utterance.rate = 0.9; // Calm, clear learning speed
-      utterance.pitch = 1.0;
-
-      // Select highest quality voice available
-      const preferredVoice = this.voices.find((v) => {
-        const vName = v.name.toLowerCase();
-        const vLang = v.lang.toLowerCase();
-        if (isHindi) {
-          return (vLang.includes('hi') || vName.includes('hindi') || vName.includes('kalpana') || vName.includes('swara') || vName.includes('hemant')) && (vName.includes('natural') || vName.includes('online') || vName.includes('google'));
-        } else {
-          return (vLang.includes('en-in') || vLang.includes('en-us') || vName.includes('india')) && (vName.includes('natural') || vName.includes('online') || vName.includes('google'));
-        }
-      }) || this.voices.find((v) => {
-        const vLang = v.lang.toLowerCase();
-        return isHindi ? vLang.includes('hi') : vLang.includes('en');
-      });
-
-      if (preferredVoice) {
-        utterance.voice = preferredVoice;
-      }
-
-      utterance.onend = () => {
-        resolve();
-      };
-
-      utterance.onerror = (err) => {
-        console.warn('Speech synthesis error:', err);
-        resolve();
-      };
-
+      utterance.rate = 0.9;
+      utterance.onend = () => resolve();
+      utterance.onerror = () => resolve();
       this.synth.speak(utterance);
     });
   }
 
   public stop(): void {
+    if (this.currentAudio) {
+      this.currentAudio.pause();
+      this.currentAudio = null;
+    }
     if (this.synth) {
       if (this.synth.speaking || this.synth.pending) {
         this.synth.cancel();
@@ -172,7 +194,9 @@ class TTSService {
   }
 
   public isSpeaking(): boolean {
-    return !!(this.synth && (this.synth.speaking || this.synth.pending));
+    const isAudioPlaying = !!(this.currentAudio && !this.currentAudio.paused);
+    const isSynthSpeaking = !!(this.synth && (this.synth.speaking || this.synth.pending));
+    return isAudioPlaying || isSynthSpeaking;
   }
 }
 
