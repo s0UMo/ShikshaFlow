@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, Wifi, WifiOff, User, GraduationCap, LayoutDashboard, RefreshCcw } from 'lucide-react';
+import { LogOut, Wifi, WifiOff, User, GraduationCap, LayoutDashboard, RefreshCcw, Sparkles } from 'lucide-react';
 import { getQueuedAttemptsCount, syncOfflineQueueToFirestore } from '../services/offlineDb';
 
 export const Navbar: React.FC = () => {
@@ -84,15 +84,26 @@ export const Navbar: React.FC = () => {
         {user && (
           <div className="hidden md:flex items-center gap-1 bg-[#141414] p-1 rounded-lg border border-white/[0.05]">
             {user.role !== 'teacher' && (
-              <Link to="/student"
-                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md font-medium transition-all ${
-                  location.pathname === '/student'
-                    ? 'bg-[#3ecf8e] text-[#0a0a0a] font-semibold shadow-sm'
-                    : 'text-[#9ca3af] hover:text-white'
-                }`}>
-                <GraduationCap className="w-3.5 h-3.5" />
-                <span>Student Portal</span>
-              </Link>
+              <>
+                <Link to="/student"
+                  className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md font-medium transition-all ${
+                    location.pathname === '/student'
+                      ? 'bg-[#3ecf8e] text-[#0a0a0a] font-semibold shadow-sm'
+                      : 'text-[#9ca3af] hover:text-white'
+                  }`}>
+                  <GraduationCap className="w-3.5 h-3.5" />
+                  <span>Student Portal</span>
+                </Link>
+                <Link to="/student/ai-quiz"
+                  className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md font-medium transition-all ${
+                    location.pathname === '/student/ai-quiz'
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold shadow-sm'
+                      : 'text-purple-300 hover:text-white'
+                  }`}>
+                  <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                  <span>AI Quiz (PRO)</span>
+                </Link>
+              </>
             )}
             {user.role === 'teacher' && (
               <Link to="/teacher"

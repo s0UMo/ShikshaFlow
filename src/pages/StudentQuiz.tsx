@@ -74,6 +74,11 @@ export const StudentQuiz: React.FC = () => {
   const [startTime, setStartTime]                     = useState<number>(Date.now());
   const toastTimerRef                                 = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Check if AI custom questions were passed via router state
+  const customQuestions: Question[] | undefined = (location.state as any)?.customQuestions;
+  const isAIQuiz = Boolean(customQuestions && customQuestions.length > 0);
+  const [aiQuestionIndex, setAiQuestionIndex] = useState<number>(0);
+
   useEffect(() => { loadTopicProgress(selectedTopic); }, [selectedTopic]);
 
   const loadTopicProgress = (topic: MathTopic) => {
@@ -95,11 +100,16 @@ export const StudentQuiz: React.FC = () => {
     setTierMessage(null);
     setNewlyUnlockedBadge(null);
 
-    const result = evaluateAdaptiveStep({
-      topic, currentTier: tier, rollingHistory: history,
-      availableQuestions: SEED_QUESTIONS, answeredQuestionIds: [],
-    });
-    setCurrentQuestion(result.nextQuestion);
+    if (isAIQuiz && customQuestions) {
+      setCurrentQuestion(customQuestions[0] || null);
+      setAiQuestionIndex(0);
+    } else {
+      const result = evaluateAdaptiveStep({
+        topic, currentTier: tier, rollingHistory: history,
+        availableQuestions: SEED_QUESTIONS, answeredQuestionIds: [],
+      });
+      setCurrentQuestion(result.nextQuestion);
+    }
     setStartTime(Date.now());
   };
 
@@ -194,11 +204,22 @@ export const StudentQuiz: React.FC = () => {
     setIsSubmitted(false);
     setTierMessage(null);
     setNewlyUnlockedBadge(null);
-    const result = evaluateAdaptiveStep({
-      topic: selectedTopic, currentTier, rollingHistory,
-      availableQuestions: SEED_QUESTIONS, answeredQuestionIds: answeredIds,
-    });
-    setCurrentQuestion(result.nextQuestion);
+
+    if (isAIQuiz && customQuestions) {
+      const nextIdx = aiQuestionIndex + 1;
+      if (nextIdx < customQuestions.length) {
+        setAiQuestionIndex(nextIdx);
+        setCurrentQuestion(customQuestions[nextIdx]);
+      } else {
+        setCurrentQuestion(null); // End of AI quiz
+      }
+    } else {
+      const result = evaluateAdaptiveStep({
+        topic: selectedTopic, currentTier, rollingHistory,
+        availableQuestions: SEED_QUESTIONS, answeredQuestionIds: answeredIds,
+      });
+      setCurrentQuestion(result.nextQuestion);
+    }
     setStartTime(Date.now());
   };
 
@@ -213,7 +234,12 @@ export const StudentQuiz: React.FC = () => {
           Back to Dashboard
         </button>
         <div className="flex items-center gap-2">
-          <span className="text-[11px] text-[#52525b] font-mono">{sessionCount} answered this session</span>
+          {isAIQuiz && (
+            <span className="px-2.5 py-1 rounded-full border bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500/40 text-purple-300 text-[11px] font-bold uppercase tracking-wider flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-purple-400" /> AI Generated Quiz
+            </span>
+          )}
+          <span className="text-[11px] text-[#52525b] font-mono">{sessionCount} answered</span>
           <span className={`px-2.5 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-wider ${TIER_STYLES[currentTier]}`}>
             {currentTier}
           </span>

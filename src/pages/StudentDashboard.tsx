@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BookOpen, ArrowRight, Flame, Target, CheckCircle2,
-  XCircle, Clock, Lock, Sparkles, TrendingUp, Zap, Star
+  XCircle, Clock, Lock, Sparkles, TrendingUp, Zap, Star, Bot
 } from 'lucide-react';
 import type { MathTopic, DifficultyTier, StudentProgress, Attempt } from '../types/schema';
 import { BADGE_DEFINITIONS } from '../services/badgeService';
@@ -135,6 +135,35 @@ export const StudentDashboard: React.FC = () => {
           <BookOpen className="w-4 h-4" />
           Start Practice
           <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* ── AI QUIZ GENERATOR PRO FEATURE BANNER ── */}
+      <div className="card-feature-light p-5 bg-gradient-to-r from-purple-950/40 via-[#1c1c1c] to-purple-950/20 border-purple-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative overflow-hidden">
+        <div className="flex items-start gap-3.5 relative z-10">
+          <div className="p-3 rounded-2xl bg-purple-500/20 border border-purple-500/30 text-purple-300 shrink-0">
+            <Bot className="w-6 h-6" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold uppercase tracking-wider">
+                PRO FEATURE
+              </span>
+              <span className="text-xs font-bold text-white">AI Custom Quiz Generator</span>
+            </div>
+            <p className="text-xs text-[#9ca3af]">
+              Generate unlimited personalized practice quizzes on pizza fractions, sports ratios, shopping decimals, or custom prompts using AI!
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => navigate('/student/ai-quiz')}
+          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 text-white font-bold text-xs flex items-center gap-2 shrink-0 shadow-lg shadow-purple-500/25 transition-all group"
+        >
+          <Sparkles className="w-4 h-4" />
+          Generate AI Quiz
+          <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
         </button>
       </div>
 

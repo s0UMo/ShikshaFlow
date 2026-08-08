@@ -7,6 +7,7 @@ import { RefreshCw } from 'lucide-react';
 // Production Code-Splitting with Lazy Page Loading
 const Login           = lazy(() => import('./pages/Login').then(m           => ({ default: m.Login           })));
 const StudentDashboard= lazy(() => import('./pages/StudentDashboard').then(m=> ({ default: m.StudentDashboard })));
+const AIQuizGenerator = lazy(() => import('./pages/AIQuizGenerator').then(m => ({ default: m.AIQuizGenerator  })));
 const StudentQuiz     = lazy(() => import('./pages/StudentQuiz').then(m     => ({ default: m.StudentQuiz     })));
 const TeacherDashboard= lazy(() => import('./pages/TeacherDashboard').then(m=> ({ default: m.TeacherDashboard})));
 
@@ -62,6 +63,14 @@ export const App: React.FC = () => {
                 element={
                   <ProtectedRoute requiredRole="student">
                     <StudentDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/student/ai-quiz"
+                element={
+                  <ProtectedRoute requiredRole="student">
+                    <AIQuizGenerator />
                   </ProtectedRoute>
                 }
               />
