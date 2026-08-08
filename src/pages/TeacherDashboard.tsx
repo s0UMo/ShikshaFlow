@@ -1,368 +1,257 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Users, AlertTriangle, ChevronRight, RefreshCw, Database,
-  BarChart3, CheckCircle2, XCircle, Clock, Search, X, ShieldCheck, Award
+  Users, AlertTriangle, RefreshCw, Database, BarChart3,
+  CheckCircle2, XCircle, Clock, Search, X, ChevronRight,
+  ShieldCheck, Award, TrendingUp, Activity
 } from 'lucide-react';
 import type { StudentProgress, User, MathTopic, Attempt } from '../types/schema';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { SEED_STUDENTS, INITIAL_PROGRESS, seedFirestoreData } from '../services/seedService';
 
+const TOPICS: MathTopic[] = ['fractions', 'ratios', 'geometry', 'decimals'];
+
 export const TeacherDashboard: React.FC = () => {
   const [students] = useState<User[]>(SEED_STUDENTS);
-  const [progressList, setProgressList] = useState<StudentProgress[]>(INITIAL_PROGRESS);
-  const [attemptsList, setAttemptsList] = useState<Attempt[]>([]);
-
+  const [progressList, setProgressList]   = useState<StudentProgress[]>(INITIAL_PROGRESS);
+  const [attemptsList, setAttemptsList]   = useState<Attempt[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery]     = useState<string>('');
+  const [isRefreshing, setIsRefreshing]   = useState<boolean>(false);
 
-  const topics: MathTopic[] = ['fractions', 'ratios', 'geometry', 'decimals'];
-
-  // Subscribe to Realtime Firestore & LocalStorage for live multi-tab updates
   useEffect(() => {
     loadLocalData();
 
-    let unsubscribeProgress: () => void = () => {};
-    let unsubscribeAttempts: () => void = () => {};
+    let unsubProgress: () => void = () => {};
+    let unsubAttempts: () => void = () => {};
 
     if (navigator.onLine) {
       try {
-        unsubscribeProgress = onSnapshot(collection(db, 'studentProgress'), (snapshot) => {
-          if (!snapshot.empty) {
-            const liveProgress: StudentProgress[] = [];
-            snapshot.forEach((doc) => liveProgress.push(doc.data() as StudentProgress));
-            if (liveProgress.length > 0) {
-              setProgressList(liveProgress);
-              localStorage.setItem('shiksha_progress', JSON.stringify(liveProgress));
-            }
+        unsubProgress = onSnapshot(collection(db, 'studentProgress'), (snap) => {
+          if (!snap.empty) {
+            const data = snap.docs.map((d) => d.data() as StudentProgress);
+            setProgressList(data);
+            localStorage.setItem('shiksha_progress', JSON.stringify(data));
           }
         });
-
-        unsubscribeAttempts = onSnapshot(collection(db, 'attempts'), (snapshot) => {
-          if (!snapshot.empty) {
-            const liveAttempts: Attempt[] = [];
-            snapshot.forEach((doc) => liveAttempts.push(doc.data() as Attempt));
-            if (liveAttempts.length > 0) {
-              setAttemptsList(liveAttempts);
-              localStorage.setItem('shiksha_attempts', JSON.stringify(liveAttempts));
-            }
+        unsubAttempts = onSnapshot(collection(db, 'attempts'), (snap) => {
+          if (!snap.empty) {
+            const data = snap.docs.map((d) => d.data() as Attempt);
+            setAttemptsList(data);
+            localStorage.setItem('shiksha_attempts', JSON.stringify(data));
           }
         });
-      } catch (err) {
-        console.warn('Firestore realtime snapshot listener deferred to local storage fallback:', err);
-      }
+      } catch (err) { console.warn('Firestore listener error:', err); }
     }
 
-    const handleStorageChange = () => {
-      loadLocalData();
-    };
-    window.addEventListener('storage', handleStorageChange);
-
-    return () => {
-      unsubscribeProgress();
-      unsubscribeAttempts();
-      window.removeEventListener('storage', handleStorageChange);
-    };
+    const onStorage = () => loadLocalData();
+    window.addEventListener('storage', onStorage);
+    return () => { unsubProgress(); unsubAttempts(); window.removeEventListener('storage', onStorage); };
   }, []);
 
   const loadLocalData = () => {
-    const savedProgress = localStorage.getItem('shiksha_progress');
-    if (savedProgress) {
-      try {
-        setProgressList(JSON.parse(savedProgress));
-      } catch (e) {
-        console.error('Error loading progress:', e);
-      }
-    }
-
-    const savedAttempts = localStorage.getItem('shiksha_attempts');
-    if (savedAttempts) {
-      try {
-        setAttemptsList(JSON.parse(savedAttempts));
-      } catch (e) {
-        console.error('Error loading attempts:', e);
-      }
-    }
+    try {
+      const p = localStorage.getItem('shiksha_progress');
+      if (p) setProgressList(JSON.parse(p));
+      const a = localStorage.getItem('shiksha_attempts');
+      if (a) setAttemptsList(JSON.parse(a));
+    } catch (e) { console.error(e); }
   };
 
-  const handleManualRefresh = () => {
-    setIsRefreshing(true);
-    loadLocalData();
-    setTimeout(() => setIsRefreshing(false), 500);
-  };
+  const handleRefresh = () => { setIsRefreshing(true); loadLocalData(); setTimeout(() => setIsRefreshing(false), 500); };
 
-  const handleSeedDatabase = async () => {
+  const handleSeedDB = async () => {
     setIsRefreshing(true);
-    const success = await seedFirestoreData();
+    const ok = await seedFirestoreData();
     loadLocalData();
     setIsRefreshing(false);
-    if (success) {
-      alert('🎉 Firestore database seeded successfully with 32 questions and 5 student profiles!');
-    } else {
-      alert('Offline mode: Seeded local fallback storage!');
-    }
+    alert(ok ? '✅ Firestore seeded: 32 questions + 5 student profiles!' : '⚠️ Offline — seeded local cache instead.');
   };
 
-  // Find progress for a specific student and topic
-  const getProgressForStudent = (studentId: string, topic: MathTopic): StudentProgress | undefined => {
-    return progressList.find((p) => p.studentId === studentId && p.topic === topic);
-  };
+  const getProgress = (studentId: string, topic: MathTopic) =>
+    progressList.find((p) => p.studentId === studentId && p.topic === topic);
 
-  // Identify "stuck" students (Early Warning System)
-  const getStuckStudents = () => {
-    const stuckList: { student: User; topic: MathTopic; progress: StudentProgress; reason: string }[] = [];
-
-    students.forEach((student) => {
-      topics.forEach((topic) => {
-        const prog = getProgressForStudent(student.id, topic);
-        if (prog) {
-          const last2 = prog.rollingHistory.slice(-2);
-          const is2Wrong = last2.length >= 2 && last2.every((res) => res === false);
-          const isLowAccuracy = prog.totalAttempts >= 3 && prog.rollingAccuracy < 40;
-
-          if (is2Wrong || isLowAccuracy) {
-            stuckList.push({
-              student,
-              topic,
-              progress: prog,
-              reason: is2Wrong
-                ? `Stuck at ${prog.currentTier.toUpperCase()} tier (2 consecutive wrong answers)`
-                : `Low rolling accuracy (${prog.rollingAccuracy}%) in ${topic.toUpperCase()}`,
-            });
-          }
-        }
-      });
-    });
-
-    return stuckList;
-  };
-
-  const stuckStudents = getStuckStudents();
+  const stuckStudents = students.flatMap((student) =>
+    TOPICS.flatMap((topic) => {
+      const prog = getProgress(student.id, topic);
+      if (!prog) return [];
+      const last2 = prog.rollingHistory.slice(-2);
+      const stuck = (last2.length >= 2 && last2.every((r) => !r)) || (prog.totalAttempts >= 3 && prog.rollingAccuracy < 40);
+      if (!stuck) return [];
+      const reason = last2.length >= 2 && last2.every((r) => !r)
+        ? `2 consecutive wrong at ${prog.currentTier.toUpperCase()}`
+        : `${prog.rollingAccuracy}% accuracy`;
+      return [{ student, topic, progress: prog, reason }];
+    })
+  );
 
   const filteredStudents = students.filter((s) =>
     s.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const avgAccuracy = progressList.length
+    ? Math.round(progressList.reduce((sum, p) => sum + p.rollingAccuracy, 0) / progressList.length)
+    : 0;
+
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-8 animate-fade-in pb-16">
-      
-      {/* ── Page Header Controls ── */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-white/5">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
+    <div className="w-full max-w-7xl mx-auto space-y-6 animate-fade-in pb-16">
+
+      {/* ── PAGE HEADER ── */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
             <span className="badge-emerald">Grade 6 Math</span>
-            <span className="text-xs text-[#9ca3af]">Teacher Gap Analytics Workspace</span>
+            <span className="text-xs text-[#52525b]">Teacher Analytics Workspace</span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-medium tracking-tight text-white flex items-center gap-2.5">
-            <Users className="w-7 h-7 text-[#3ecf8e]" /> Class Learning Gaps & Heatmap
+          <h1 className="text-2xl font-medium text-white tracking-tight flex items-center gap-2">
+            <Users className="w-6 h-6 text-[#3ecf8e]" /> Class Analytics
           </h1>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleSeedDatabase}
-            className="btn-primary-green text-xs px-3.5 py-2 flex items-center gap-1.5"
-            title="Push seed dataset into Cloud Firestore"
-          >
-            <Database className="w-3.5 h-3.5" />
-            <span>Seed Firestore DB</span>
+        <div className="flex items-center gap-2">
+          <button onClick={handleSeedDB} className="btn-secondary-outline text-xs px-3 py-2 flex items-center gap-1.5">
+            <Database className="w-3.5 h-3.5 text-[#3ecf8e]" /> Seed DB
           </button>
-
-          <button
-            onClick={handleManualRefresh}
-            className="btn-secondary-outline text-xs px-3.5 py-2 flex items-center gap-1.5"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-[#3ecf8e] ${isRefreshing ? 'animate-spin' : ''}`} />
-            <span>Sync Live Data</span>
+          <button onClick={handleRefresh} className="btn-primary-green text-xs px-3 py-2 flex items-center gap-1.5">
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} /> Sync Live
           </button>
         </div>
       </div>
 
-      {/* ── METRICS SUMMARY CARDS ROW ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl bg-[#141414] border border-white/10 space-y-1">
-          <span className="text-xs text-[#9ca3af]">Total Enrolled Students</span>
-          <div className="text-2xl font-bold text-white">{students.length}</div>
-          <span className="text-[11px] text-[#3ecf8e]">Grade 6 Math Section A</span>
-        </div>
-
-        <div className="p-4 rounded-xl bg-[#141414] border border-white/10 space-y-1">
-          <span className="text-xs text-[#9ca3af]">Stuck Student Alerts</span>
-          <div className="text-2xl font-bold text-rose-400">{stuckStudents.length}</div>
-          <span className="text-[11px] text-rose-300">Requires Teacher Intervention</span>
-        </div>
-
-        <div className="p-4 rounded-xl bg-[#141414] border border-white/10 space-y-1">
-          <span className="text-xs text-[#9ca3af]">Total Attempt Logs</span>
-          <div className="text-2xl font-bold text-white">{attemptsList.length}</div>
-          <span className="text-[11px] text-purple-400">Synced to Cloud / IndexedDB</span>
-        </div>
-
-        <div className="p-4 rounded-xl bg-[#141414] border border-white/10 space-y-1">
-          <span className="text-xs text-[#9ca3af]">Sync Engine Status</span>
-          <div className="text-sm font-semibold text-[#3ecf8e] flex items-center gap-1.5 pt-1">
-            <ShieldCheck className="w-4 h-4 text-[#3ecf8e]" />
-            <span>Firestore Realtime Active</span>
+      {/* ── STAT CARDS ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: 'Total Students', value: students.length, sub: 'Section A', icon: <Users className="w-4 h-4" />, color: 'text-[#3ecf8e]' },
+          { label: 'Stuck Alerts', value: stuckStudents.length, sub: 'Need intervention', icon: <AlertTriangle className="w-4 h-4" />, color: 'text-rose-400' },
+          { label: 'Total Attempts', value: attemptsList.length, sub: 'Logged & synced', icon: <Activity className="w-4 h-4" />, color: 'text-purple-400' },
+          { label: 'Avg. Accuracy', value: `${avgAccuracy}%`, sub: 'Rolling window', icon: <TrendingUp className="w-4 h-4" />, color: 'text-amber-400' },
+        ].map((card) => (
+          <div key={card.label} className="card-feature-light p-4 space-y-2">
+            <div className={`flex items-center gap-1.5 text-xs font-medium ${card.color}`}>
+              {card.icon}
+              <span>{card.label}</span>
+            </div>
+            <div className="text-2xl font-bold text-white">{card.value}</div>
+            <div className="text-[11px] text-[#52525b]">{card.sub}</div>
           </div>
-          <span className="text-[11px] text-[#9ca3af]">Multi-tab Listener Live</span>
-        </div>
+        ))}
       </div>
 
-      {/* ── EARLY WARNING SYSTEM: STUCK STUDENTS HIGHLIGHT ── */}
-      <div className="card-feature-light p-6 border-l-4 border-l-rose-500 border-white/10 space-y-4 bg-rose-950/10">
-        <div className="flex items-center justify-between">
+      {/* ── EARLY WARNING ── */}
+      {stuckStudents.length > 0 && (
+        <div className="card-feature-light border-l-4 border-l-rose-500 p-5 space-y-4">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-rose-500/20 text-rose-400">
-              <AlertTriangle className="w-5 h-5 animate-pulse" />
+            <div className="p-2 rounded-lg bg-rose-500/15 text-rose-400">
+              <AlertTriangle className="w-4 h-4 animate-pulse" />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-white flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-white">
                 Early Warning System
-                <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-xs font-mono font-bold">
-                  {stuckStudents.length} Action Items
+                <span className="ml-2 px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-300 text-[11px] font-mono">
+                  {stuckStudents.length} action items
                 </span>
               </h2>
-              <p className="text-xs text-[#9ca3af]">
-                Real-time alert for students exhibiting learning bottlenecks or repeated incorrect attempts.
-              </p>
+              <p className="text-xs text-[#52525b]">Students flagged with consecutive wrong answers or below 40% accuracy</p>
             </div>
           </div>
-        </div>
 
-        {stuckStudents.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
-            {stuckStudents.map(({ student, topic, progress, reason }, idx) => (
-              <div
-                key={idx}
-                onClick={() => setSelectedStudent(student)}
-                className="p-3.5 rounded-xl bg-[#1c1c1c] border border-rose-500/30 hover:border-rose-500/60 cursor-pointer transition-all flex items-start justify-between group"
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-white text-sm">{student.name}</span>
-                    <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            {stuckStudents.map(({ student, topic, progress, reason }, i) => (
+              <button key={i} onClick={() => setSelectedStudent(student)}
+                className="p-3.5 rounded-xl bg-[#1c1c1c] border border-rose-500/25 hover:border-rose-500/50 text-left transition-all flex items-center justify-between gap-3 group">
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-white truncate">{student.name}</span>
+                    <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-300 border border-rose-500/25 shrink-0">
                       {topic}
                     </span>
                   </div>
-                  <p className="text-xs text-rose-300/90 flex items-center gap-1">
-                    <span>⚠️</span> {reason}
+                  <p className="text-xs text-rose-300/80">⚠ {reason}</p>
+                  <p className="text-[11px] text-[#52525b]">
+                    Tier: <strong className="text-white uppercase">{progress.currentTier}</strong> · {progress.rollingAccuracy}% acc
                   </p>
-                  <div className="text-[11px] text-[#9ca3af] flex items-center gap-2 pt-1">
-                    <span>Tier: <strong className="text-white uppercase">{progress.currentTier}</strong></span>
-                    <span>•</span>
-                    <span>Accuracy: <strong className="text-rose-400">{progress.rollingAccuracy}%</strong></span>
-                  </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-[#9ca3af] group-hover:text-rose-400 group-hover:translate-x-1 transition-all mt-1" />
-              </div>
+                <ChevronRight className="w-4 h-4 text-[#52525b] group-hover:text-rose-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+              </button>
             ))}
           </div>
-        ) : (
-          <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4" />
-            <span>All students are progressing smoothly! No critical learning bottlenecks detected.</span>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* ── CLASS-WIDE HEATMAP MATRIX ── */}
-      <div className="card-feature-light p-6 space-y-6 border border-white/10">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      {/* ── HEATMAP TABLE ── */}
+      <div className="card-feature-light overflow-hidden">
+        <div className="p-5 border-b border-white/[0.06] flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-[#3ecf8e]" /> Class Accuracy & Tier Heatmap
+            <h2 className="text-base font-semibold text-white flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-[#3ecf8e]" /> Class Accuracy Heatmap
             </h2>
-            <p className="text-xs text-[#9ca3af]">
-              Student mastery per topic color-coded by performance (Green = Hard/High, Amber = Medium, Red = Easy/Stuck).
+            <p className="text-xs text-[#52525b] mt-0.5">
+              Color-coded per topic: <span className="text-emerald-400">■ Hard/High</span> · <span className="text-amber-400">■ Medium</span> · <span className="text-rose-400">■ Easy/Stuck</span>
             </p>
           </div>
-
-          {/* Search Bar */}
-          <div className="relative w-full md:w-64">
-            <Search className="w-4 h-4 text-[#9ca3af] absolute left-3 top-2.5" />
-            <input
-              type="text"
-              placeholder="Search student..."
-              value={searchQuery}
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-[#52525b] absolute left-2.5 top-2.5" />
+            <input type="text" placeholder="Search student..." value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#1c1c1c] border border-white/10 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-[#9ca3af] focus:outline-none focus:border-[#3ecf8e]"
-            />
+              className="bg-[#1c1c1c] border border-white/[0.08] rounded-lg pl-8 pr-3 py-2 text-xs text-white placeholder-[#52525b] focus:outline-none focus:border-[#3ecf8e]/50 w-52 transition-colors" />
           </div>
         </div>
 
-        {/* Heatmap Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-white/10 text-xs font-mono uppercase text-[#9ca3af]">
-                <th className="py-3 px-4">Student Name</th>
-                {topics.map((t) => (
-                  <th key={t} className="py-3 px-4 text-center capitalize">{t}</th>
+              <tr className="border-b border-white/[0.06]">
+                <th className="py-3 px-5 text-[11px] font-semibold text-[#52525b] uppercase tracking-wider">Student</th>
+                {TOPICS.map((t) => (
+                  <th key={t} className="py-3 px-4 text-[11px] font-semibold text-[#52525b] uppercase tracking-wider text-center capitalize">{t}</th>
                 ))}
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th className="py-3 px-4 text-[11px] font-semibold text-[#52525b] uppercase tracking-wider text-right">Log</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5 text-sm">
+            <tbody>
               {filteredStudents.map((student) => (
-                <tr
-                  key={student.id}
-                  onClick={() => setSelectedStudent(student)}
-                  className="hover:bg-[#1c1c1c] transition-colors cursor-pointer group"
-                >
-                  <td className="py-4 px-4 font-medium text-white flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-[#3ecf8e]/10 border border-[#3ecf8e]/30 flex items-center justify-center text-xs font-bold text-[#3ecf8e]">
-                      {student.name.charAt(0)}
-                    </div>
-                    <div>
-                      <div className="font-semibold text-white group-hover:text-[#3ecf8e] transition-colors">
-                        {student.name}
+                <tr key={student.id} onClick={() => setSelectedStudent(student)}
+                  className="border-b border-white/[0.04] hover:bg-[#141414] cursor-pointer transition-colors group">
+                  <td className="py-3.5 px-5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 flex items-center justify-center text-xs font-bold text-[#3ecf8e] shrink-0">
+                        {student.name.charAt(0)}
                       </div>
-                      <div className="text-[11px] text-[#9ca3af]">ID: {student.id}</div>
+                      <div>
+                        <div className="text-sm font-semibold text-white group-hover:text-[#3ecf8e] transition-colors">{student.name}</div>
+                        <div className="text-[11px] text-[#52525b]">{student.id}</div>
+                      </div>
                     </div>
                   </td>
 
-                  {topics.map((topic) => {
-                    const prog = getProgressForStudent(student.id, topic);
-                    
-                    if (!prog) {
-                      return (
-                        <td key={topic} className="py-4 px-4 text-center">
-                          <span className="text-xs text-[#52525b] px-2.5 py-1 rounded bg-[#141414] border border-white/5">
-                            Unattempted
-                          </span>
-                        </td>
-                      );
-                    }
-
+                  {TOPICS.map((topic) => {
+                    const prog = getProgress(student.id, topic);
+                    if (!prog) return (
+                      <td key={topic} className="py-3.5 px-4 text-center">
+                        <span className="text-[11px] text-[#52525b] px-2 py-1 rounded bg-[#1c1c1c] border border-white/[0.04]">—</span>
+                      </td>
+                    );
                     const last2 = prog.rollingHistory.slice(-2);
-                    const isStuck = last2.length >= 2 && last2.every((res) => res === false);
-
-                    let badgeStyle = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
-                    if (isStuck || prog.rollingAccuracy < 40) {
-                      badgeStyle = 'bg-rose-500/20 text-rose-300 border-rose-500/40 animate-pulse';
-                    } else if (prog.currentTier === 'medium' || (prog.rollingAccuracy >= 40 && prog.rollingAccuracy < 80)) {
-                      badgeStyle = 'bg-amber-500/10 text-amber-300 border-amber-500/30';
-                    }
-
+                    const stuck = last2.length >= 2 && last2.every((r) => !r);
+                    const style = stuck || prog.rollingAccuracy < 40
+                      ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                      : prog.currentTier === 'hard'
+                      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                      : 'bg-amber-500/10 text-amber-300 border-amber-500/25';
                     return (
-                      <td key={topic} className="py-4 px-4 text-center">
-                        <div className="inline-flex flex-col items-center">
-                          <span className={`text-xs px-3 py-1 rounded-md font-semibold border ${badgeStyle}`}>
-                            {prog.currentTier.toUpperCase()} • {prog.rollingAccuracy}%
-                          </span>
-                          <span className="text-[10px] text-[#9ca3af] mt-1">
-                            {prog.correctCount}/{prog.totalAttempts} Correct
-                          </span>
+                      <td key={topic} className="py-3.5 px-4 text-center">
+                        <div className={`inline-flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold ${style}`}>
+                          <span className="uppercase tracking-wider">{prog.currentTier}</span>
+                          <span className="text-[10px] opacity-75 font-normal">{prog.rollingAccuracy}%</span>
                         </div>
                       </td>
                     );
                   })}
 
-                  <td className="py-4 px-4 text-right">
-                    <button className="text-xs text-[#3ecf8e] hover:underline inline-flex items-center gap-1 font-medium">
-                      View Log <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
+                  <td className="py-3.5 px-4 text-right">
+                    <span className="text-xs text-[#3ecf8e] font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 justify-end">
+                      View <ChevronRight className="w-3.5 h-3.5" />
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -371,114 +260,108 @@ export const TeacherDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* ── STUDENT ATTEMPT HISTORY DRILL-DOWN MODAL ── */}
+      {/* ── STUDENT DETAIL MODAL ── */}
       {selectedStudent && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-          <div className="card-feature-light max-w-3xl w-full max-h-[85vh] overflow-y-auto p-6 md:p-8 space-y-6 border border-white/10 relative">
-            <button
-              onClick={() => setSelectedStudent(null)}
-              className="absolute top-6 right-6 p-1.5 rounded-lg text-[#9ca3af] hover:text-white hover:bg-white/10 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="card-feature-light w-full max-w-2xl max-h-[85vh] overflow-y-auto scrollbar-thin animate-scale-in">
 
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-[#3ecf8e]/10 border border-[#3ecf8e]/30 flex items-center justify-center text-lg font-bold text-[#3ecf8e]">
-                {selectedStudent.name.charAt(0)}
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-white/[0.06]">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-[#3ecf8e]/10 border border-[#3ecf8e]/25 flex items-center justify-center text-base font-bold text-[#3ecf8e]">
+                  {selectedStudent.name.charAt(0)}
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">{selectedStudent.name}</h3>
+                  <p className="text-xs text-[#52525b]">Student Performance Report</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-xl font-bold text-white">{selectedStudent.name}</h3>
-                <p className="text-xs text-[#9ca3af]">Student Attempt History & Performance Analytics</p>
-              </div>
+              <button onClick={() => setSelectedStudent(null)}
+                className="p-2 rounded-lg text-[#52525b] hover:text-white hover:bg-white/[0.06] transition-colors">
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            {/* Student Topic Progress Overview */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {topics.map((t) => {
-                const prog = getProgressForStudent(selectedStudent.id, t);
-                return (
-                  <div key={t} className="p-3 rounded-xl bg-[#1c1c1c] border border-white/10 space-y-1">
-                    <span className="text-xs capitalize font-semibold text-[#9ca3af] block">{t}</span>
-                    <span className="text-sm font-bold text-white uppercase">{prog ? prog.currentTier : 'N/A'}</span>
-                    <span className="text-xs text-[#3ecf8e] block font-mono">{prog ? `${prog.rollingAccuracy}% Acc` : 'No data'}</span>
+            <div className="p-6 space-y-5">
+              {/* Topic Progress Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {TOPICS.map((t) => {
+                  const prog = getProgress(selectedStudent.id, t);
+                  return (
+                    <div key={t} className="p-3 rounded-xl bg-[#1c1c1c] border border-white/[0.06] space-y-1 text-center">
+                      <span className="text-[11px] font-semibold text-[#52525b] uppercase tracking-wider block">{t}</span>
+                      <span className="text-sm font-bold text-white uppercase block">{prog?.currentTier ?? '—'}</span>
+                      <span className="text-xs text-[#3ecf8e] block">{prog ? `${prog.rollingAccuracy}%` : 'No data'}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Badges */}
+              <div className="p-4 rounded-xl bg-[#1c1c1c] border border-white/[0.06] space-y-2">
+                <h4 className="text-[11px] font-semibold text-[#52525b] uppercase tracking-wider flex items-center gap-1.5">
+                  <Award className="w-3.5 h-3.5 text-amber-400" /> Earned Badges
+                </h4>
+                <div className="flex flex-wrap gap-1.5">
+                  {(() => {
+                    const all = new Set<string>();
+                    TOPICS.forEach((t) => { getProgress(selectedStudent.id, t)?.badges?.forEach((b) => all.add(b)); });
+                    const arr = Array.from(all);
+                    return arr.length ? arr.map((id) => (
+                      <span key={id} className="px-2.5 py-1 rounded-full bg-[#141414] border border-white/[0.06] text-xs text-white flex items-center gap-1">
+                        🏆 <span className="capitalize">{id.replace(/_/g, ' ')}</span>
+                      </span>
+                    )) : <span className="text-xs text-[#52525b]">No badges yet</span>;
+                  })()}
+                </div>
+              </div>
+
+              {/* Attempt History */}
+              <div className="space-y-2.5">
+                <h4 className="text-[11px] font-semibold text-[#52525b] uppercase tracking-wider flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-[#3ecf8e]" /> Recent Attempts
+                </h4>
+
+                {attemptsList.filter((a) => a.studentId === selectedStudent.id).length === 0 ? (
+                  <div className="p-4 rounded-xl bg-[#141414] border border-white/[0.04] text-center text-xs text-[#52525b]">
+                    No attempts logged yet — start a quiz session first
                   </div>
-                );
-              })}
-            </div>
-
-            {/* Badges Earned Row */}
-            <div className="p-4 rounded-xl bg-[#141414] border border-white/5 space-y-2">
-              <span className="text-xs font-semibold text-[#9ca3af] uppercase tracking-wider block flex items-center gap-1.5">
-                <Award className="w-4 h-4 text-amber-400" /> Earned Badges & Achievements
-              </span>
-              <div className="flex flex-wrap items-center gap-2">
-                {(() => {
-                  const allBadges = new Set<string>();
-                  topics.forEach(t => {
-                    const prog = getProgressForStudent(selectedStudent.id, t);
-                    if (prog?.badges) prog.badges.forEach(b => allBadges.add(b));
-                  });
-                  const badgeArr = Array.from(allBadges);
-                  if (badgeArr.length === 0) {
-                    return <span className="text-xs text-[#52525b]">No badges unlocked yet</span>;
-                  }
-                  return badgeArr.map(badgeId => (
-                    <span key={badgeId} className="px-2.5 py-1 rounded-full bg-[#1c1c1c] border border-white/10 text-xs text-white flex items-center gap-1.5">
-                      <span>🏆</span>
-                      <span className="capitalize">{badgeId.replace('_', ' ')}</span>
-                    </span>
-                  ));
-                })()}
-              </div>
-            </div>
-
-            {/* Attempt Logs List */}
-            <div className="space-y-3 pt-2">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-[#9ca3af] flex items-center gap-2">
-                <Clock className="w-4 h-4 text-[#3ecf8e]" /> Recent Attempt History
-              </h4>
-
-              {attemptsList.filter((a) => a.studentId === selectedStudent.id).length > 0 ? (
-                <div className="space-y-2">
-                  {attemptsList
-                    .filter((a) => a.studentId === selectedStudent.id)
-                    .sort((a, b) => b.timestamp - a.timestamp)
-                    .slice(0, 10)
-                    .map((attempt) => (
-                      <div
-                        key={attempt.id}
-                        className="p-3 rounded-xl bg-[#141414] border border-white/5 flex items-center justify-between text-xs"
-                      >
-                        <div className="flex items-center gap-3">
-                          {attempt.isCorrect ? (
-                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                          ) : (
-                            <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                          )}
-                          <div>
-                            <div className="font-semibold text-white capitalize">
-                              Topic: {attempt.topic} • Question ID: {attempt.questionId}
-                            </div>
-                            <div className="text-[11px] text-[#9ca3af]">
-                              Difficulty: <span className="uppercase text-white font-mono">{attempt.difficulty}</span>
+                ) : (
+                  <div className="space-y-1.5">
+                    {attemptsList
+                      .filter((a) => a.studentId === selectedStudent.id)
+                      .sort((a, b) => b.timestamp - a.timestamp)
+                      .slice(0, 8)
+                      .map((attempt) => (
+                        <div key={attempt.id}
+                          className="p-3 rounded-xl bg-[#141414] border border-white/[0.04] flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3 min-w-0">
+                            {attempt.isCorrect
+                              ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                              : <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                            }
+                            <div className="min-w-0">
+                              <div className="text-xs font-medium text-white capitalize truncate">
+                                {attempt.topic} — Q{attempt.questionId.slice(-4)}
+                              </div>
+                              <div className="text-[11px] text-[#52525b] uppercase">{attempt.difficulty}</div>
                             </div>
                           </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-xs font-mono text-white">{(attempt.responseTimeMs / 1000).toFixed(1)}s</div>
+                            <div className="text-[11px] text-[#52525b]">{new Date(attempt.timestamp).toLocaleTimeString()}</div>
+                          </div>
                         </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </div>
 
-                        <div className="text-right">
-                          <span className="font-mono text-white block">{(attempt.responseTimeMs / 1000).toFixed(1)}s</span>
-                          <span className="text-[10px] text-[#9ca3af]">
-                            {new Date(attempt.timestamp).toLocaleTimeString()}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              ) : (
-                <div className="p-4 rounded-xl bg-[#141414] text-center text-xs text-[#9ca3af]">
-                  No attempt logs recorded for this student yet. Start a quiz session in Student view to populate attempts!
-                </div>
-              )}
+            {/* Modal Footer */}
+            <div className="border-t border-white/[0.06] px-6 py-3 bg-[#141414] flex items-center gap-2">
+              <ShieldCheck className="w-3.5 h-3.5 text-[#3ecf8e]" />
+              <span className="text-[11px] text-[#52525b]">Data synced from Firestore realtime listener</span>
             </div>
           </div>
         </div>
