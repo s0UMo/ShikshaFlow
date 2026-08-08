@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Users, AlertTriangle, ChevronRight, RefreshCw, 
+  Users, AlertTriangle, ChevronRight, RefreshCw, Database,
   BarChart3, CheckCircle2, XCircle, Clock, Search, X
 } from 'lucide-react';
 import type { StudentProgress, User, MathTopic, Attempt } from '../types/schema';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { SEED_STUDENTS, INITIAL_PROGRESS } from '../services/seedService';
+import { SEED_STUDENTS, INITIAL_PROGRESS, seedFirestoreData } from '../services/seedService';
 
 export const TeacherDashboard: React.FC = () => {
   const [students] = useState<User[]>(SEED_STUDENTS);
@@ -94,6 +94,18 @@ export const TeacherDashboard: React.FC = () => {
     setTimeout(() => setIsRefreshing(false), 500);
   };
 
+  const handleSeedDatabase = async () => {
+    setIsRefreshing(true);
+    const success = await seedFirestoreData();
+    loadLocalData();
+    setIsRefreshing(false);
+    if (success) {
+      alert('🎉 Firestore database seeded successfully with 32 questions and 5 student profiles!');
+    } else {
+      alert('Offline mode: Seeded local fallback storage!');
+    }
+  };
+
   // Find progress for a specific student and topic
   const getProgressForStudent = (studentId: string, topic: MathTopic): StudentProgress | undefined => {
     return progressList.find((p) => p.studentId === studentId && p.topic === topic);
@@ -152,6 +164,15 @@ export const TeacherDashboard: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleSeedDatabase}
+            className="btn-primary-green text-xs px-3.5 py-2 flex items-center gap-1.5"
+            title="Push 32 seed questions and student progress to your real Firebase project"
+          >
+            <Database className="w-3.5 h-3.5" />
+            <span>Seed Firestore DB</span>
+          </button>
+
           <button
             onClick={handleManualRefresh}
             className="btn-secondary-outline text-xs px-3.5 py-2 flex items-center gap-1.5"
