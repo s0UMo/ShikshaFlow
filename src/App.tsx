@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
+import { ProtectedRoute } from './components/ProtectedRoute';
 import { RefreshCw } from 'lucide-react';
 
 // Production Code-Splitting with Lazy Page Loading
@@ -55,8 +56,22 @@ export const App: React.FC = () => {
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
               <Route path="/login" element={<Login />} />
-              <Route path="/student" element={<StudentQuiz />} />
-              <Route path="/teacher" element={<TeacherDashboard />} />
+              <Route
+                path="/student"
+                element={
+                  <ProtectedRoute requiredRole="student">
+                    <StudentQuiz />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/teacher"
+                element={
+                  <ProtectedRoute requiredRole="teacher">
+                    <TeacherDashboard />
+                  </ProtectedRoute>
+                }
+              />
               <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
           </Suspense>
