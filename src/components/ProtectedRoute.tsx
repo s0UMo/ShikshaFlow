@@ -8,23 +8,23 @@ interface ProtectedRouteProps {
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole }) => {
   const userRaw = localStorage.getItem('shiksha_user');
-  
-  if (!userRaw) {
-    return <Navigate to="/login" replace />;
-  }
+
+  // Not logged in
+  if (!userRaw) return <Navigate to="/login" replace />;
 
   try {
     const user = JSON.parse(userRaw);
-    if (!user || !user.id) {
+
+    // Malformed session
+    if (!user?.id || !user?.role) return <Navigate to="/login" replace />;
+
+    // Wrong role — teachers can access student routes, students cannot access teacher routes
+    if (requiredRole === 'teacher' && user.role !== 'teacher') {
       return <Navigate to="/login" replace />;
     }
 
-    if (requiredRole && user.role !== requiredRole && user.role !== 'teacher') {
-      return <Navigate to="/login" replace />;
-    }
-  } catch (e) {
+    return children;
+  } catch {
     return <Navigate to="/login" replace />;
   }
-
-  return children;
 };
