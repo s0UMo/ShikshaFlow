@@ -53,8 +53,9 @@ const shuffleQuestion = (q: Question): Question => {
     [indices[i], indices[j]] = [indices[j], indices[i]];
   }
   const shuffledOptions = indices.map(i => q.options[i]);
+  const shuffledOptionsHindi = q.optionsHindi ? indices.map(i => q.optionsHindi![i]) : undefined;
   const newCorrectIndex = indices.indexOf(q.correctAnswerIndex);
-  return { ...q, options: shuffledOptions, correctAnswerIndex: newCorrectIndex };
+  return { ...q, options: shuffledOptions, optionsHindi: shuffledOptionsHindi, correctAnswerIndex: newCorrectIndex };
 };
 
 export const StudentQuiz: React.FC = () => {

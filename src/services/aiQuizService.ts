@@ -77,7 +77,9 @@ Return a JSON object with a "questions" key containing an array of ${params.coun
       "explanationHindi": "Step-by-step solution in Hindi"
     }
   ]
-}`;
+}
+
+IMPORTANT: The CORRECT answer MUST always be placed as the FIRST option (options[0]). correctAnswerIndex MUST always be 0. Place wrong distractors at options[1], options[2], options[3]. DO NOT shuffle the options; they must remain in this order.`;
 
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -109,6 +111,9 @@ Context/Theme: ${params.prompt || 'General Math practice'}.
 CRITICAL REQUIREMENTS:
 - "questionText", "options", "explanation" MUST be strictly in English.
 - "questionTextHindi", "optionsHindi", "explanationHindi" MUST be in Hindi.
+- The CORRECT answer MUST always be options[0]. correctAnswerIndex is always 0.
+- Place all wrong distractors at options[1], options[2], options[3].
+- DO NOT shuffle the options; they must remain in this order.
 
 For EACH question, return a JSON object with this structure:
 {
