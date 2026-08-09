@@ -89,10 +89,6 @@ export const AIQuizGenerator: React.FC = () => {
       clearInterval(stepInterval);
 
       if (result && result.length > 0) {
-        try {
-          sessionStorage.setItem('shiksha_ai_quiz_active', 'true');
-          sessionStorage.setItem('shiksha_ai_custom_questions', JSON.stringify(result));
-        } catch { /* ignore */ }
         navigate('/student/quiz', {
           state: {
             customQuestions: result,
