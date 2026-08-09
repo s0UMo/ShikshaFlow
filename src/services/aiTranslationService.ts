@@ -92,7 +92,7 @@ export async function translateTextWithAI(
       if (codeMatch && codeMatch !== 'en') {
         const localRes = translateQuestionContent({
           id: '', subject: 'Math', topic: 'fractions', difficulty: 'easy',
-          questionText: text, questionTextHindi: '', options: [], explanation: '', explanationHindi: ''
+          questionText: text, questionTextHindi: '', options: [], correctAnswerIndex: 0, explanation: '', explanationHindi: ''
         }, codeMatch);
         result = localRes.text;
       } else {
