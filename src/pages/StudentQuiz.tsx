@@ -44,6 +44,19 @@ const TIER_STYLES: Record<DifficultyTier, string> = {
   hard:   'bg-purple-500/10 text-purple-400 border-purple-500/20',
 };
 
+/** Shuffle a question's options and update correctAnswerIndex accordingly */
+const shuffleQuestion = (q: Question): Question => {
+  const indices = q.options.map((_, i) => i);
+  // Fisher-Yates shuffle on indices
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  const shuffledOptions = indices.map(i => q.options[i]);
+  const newCorrectIndex = indices.indexOf(q.correctAnswerIndex);
+  return { ...q, options: shuffledOptions, correctAnswerIndex: newCorrectIndex };
+};
+
 export const StudentQuiz: React.FC = () => {
   const navigate  = useNavigate();
   const location  = useLocation();
@@ -186,14 +199,14 @@ export const StudentQuiz: React.FC = () => {
     setNewlyUnlockedBadge(null);
 
     if (isAIQuiz && customQuestions) {
-      setCurrentQuestion(customQuestions[0] || null);
+      setCurrentQuestion(customQuestions[0] ? shuffleQuestion(customQuestions[0]) : null);
       setAiQuestionIndex(0);
     } else {
       const result = evaluateAdaptiveStep({
         topic, currentTier: tier, rollingHistory: history,
         availableQuestions: allQuestions, answeredQuestionIds: [],
       });
-      setCurrentQuestion(result.nextQuestion);
+      setCurrentQuestion(result.nextQuestion ? shuffleQuestion(result.nextQuestion) : null);
     }
     setStartTime(Date.now());
   };
@@ -286,7 +299,7 @@ export const StudentQuiz: React.FC = () => {
       const nextIdx = aiQuestionIndex + 1;
       if (nextIdx < customQuestions.length) {
         setAiQuestionIndex(nextIdx);
-        setCurrentQuestion(customQuestions[nextIdx]);
+        setCurrentQuestion(shuffleQuestion(customQuestions[nextIdx]));
       } else {
         setCurrentQuestion(null); // End of AI quiz
       }
@@ -295,7 +308,7 @@ export const StudentQuiz: React.FC = () => {
         topic: selectedTopic, currentTier, rollingHistory,
         availableQuestions: allQuestions, answeredQuestionIds: answeredIds,
       });
-      setCurrentQuestion(result.nextQuestion);
+      setCurrentQuestion(result.nextQuestion ? shuffleQuestion(result.nextQuestion) : null);
     }
     setStartTime(Date.now());
   };
