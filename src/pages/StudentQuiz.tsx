@@ -324,28 +324,26 @@ export const StudentQuiz: React.FC = () => {
         </div>
       </div>
 
-      {/* ── TOPIC SELECTOR (Only for standard topic quizzes) ── */}
-      {!isAIQuiz && (
-        <div className="card-feature-light p-2 flex items-center gap-1 overflow-x-auto">
-          {TOPICS.map((topic) => {
-            const TopicIcon = TOPIC_META[topic].icon;
-            return (
-              <button
-                key={topic}
-                onClick={() => setSelectedTopic(topic)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold flex-1 justify-center transition-all whitespace-nowrap ${
-                  selectedTopic === topic
-                    ? 'bg-[#3ecf8e] text-[#0a0a0a] shadow-md shadow-[#3ecf8e]/20'
-                    : 'text-[#9ca3af] hover:text-white hover:bg-[#1c1c1c]'
-                }`}
-              >
-                <TopicIcon className="w-4 h-4 shrink-0" />
-                <span>{TOPIC_META[topic].label}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {/* ── TOPIC SELECTOR ── */}
+      <div className="card-feature-light p-2 flex items-center gap-1 overflow-x-auto">
+        {TOPICS.map((topic) => {
+          const TopicIcon = TOPIC_META[topic].icon;
+          return (
+            <button
+              key={topic}
+              onClick={() => setSelectedTopic(topic)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold flex-1 justify-center transition-all whitespace-nowrap ${
+                selectedTopic === topic
+                  ? 'bg-[#3ecf8e] text-[#0a0a0a] shadow-md shadow-[#3ecf8e]/20'
+                  : 'text-[#9ca3af] hover:text-white hover:bg-[#1c1c1c]'
+              }`}
+            >
+              <TopicIcon className="w-4 h-4 shrink-0" />
+              <span>{TOPIC_META[topic].label}</span>
+            </button>
+          );
+        })}
+      </div>
 
       {/* ── STREAK & USER BAR ── */}
       <div className="flex items-center justify-between px-1">
