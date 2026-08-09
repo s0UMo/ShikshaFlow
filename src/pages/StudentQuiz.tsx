@@ -78,9 +78,19 @@ export const StudentQuiz: React.FC = () => {
   const [startTime, setStartTime]                     = useState<number>(Date.now());
   const toastTimerRef                                 = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Check if AI custom questions were passed via router state
-  const customQuestions: Question[] | undefined = (location.state as any)?.customQuestions;
-  const isAIQuiz = Boolean(customQuestions && customQuestions.length > 0);
+  // Check if AI custom questions were passed via router state or persistent session storage
+  const customQuestionsState: Question[] | undefined = (location.state as any)?.customQuestions;
+  const customQuestionsStorage: Question[] | undefined = (() => {
+    try {
+      const raw = sessionStorage.getItem('shiksha_ai_custom_questions');
+      return raw ? JSON.parse(raw) : undefined;
+    } catch {
+      return undefined;
+    }
+  })();
+
+  const customQuestions = customQuestionsState || customQuestionsStorage;
+  const isAIQuiz = Boolean((location.state as any)?.isAI || sessionStorage.getItem('shiksha_ai_quiz_active') === 'true' || (customQuestions && customQuestions.length > 0));
   const [aiQuestionIndex, setAiQuestionIndex] = useState<number>(0);
 
   const [allQuestions, setAllQuestions] = useState<Question[]>(getAllQuestionsLocal());
@@ -307,7 +317,13 @@ export const StudentQuiz: React.FC = () => {
 
       {/* ── BACK / HEADER ── */}
       <div className="flex items-center justify-between">
-        <button onClick={() => navigate('/student')}
+        <button onClick={() => {
+          try {
+            sessionStorage.removeItem('shiksha_ai_quiz_active');
+            sessionStorage.removeItem('shiksha_ai_custom_questions');
+          } catch { /* ignore */ }
+          navigate('/student');
+        }}
           className="flex items-center gap-1.5 text-xs text-[#9ca3af] hover:text-white transition-colors">
           <ArrowLeft className="w-4 h-4" /> Back to Dashboard
         </button>
