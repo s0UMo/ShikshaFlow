@@ -1,4 +1,5 @@
-import { autoTranslateEnglishToHindi } from './translationEngine';
+import { autoTranslateEnglishToHindi, translateQuestionContent } from './translationEngine';
+import { SUPPORTED_LANGUAGES } from './i18nService';
 
 const CACHE_KEY = 'shiksha_ai_translation_cache';
 
@@ -82,7 +83,22 @@ export async function translateTextWithAI(
 
   // 3. Fallback to local rule engine
   if (!result) {
-    result = autoTranslateEnglishToHindi(text);
+    const isHindi = targetLang.toLowerCase().includes('hindi');
+    if (isHindi) {
+      result = autoTranslateEnglishToHindi(text);
+    } else {
+      // Find matching language code from supported languages
+      const codeMatch = SUPPORTED_LANGUAGES.find(l => l.name.toLowerCase() === targetLang.toLowerCase())?.code;
+      if (codeMatch && codeMatch !== 'en') {
+        const localRes = translateQuestionContent({
+          id: '', subject: 'Math', topic: 'fractions', difficulty: 'easy',
+          questionText: text, questionTextHindi: '', options: [], explanation: '', explanationHindi: ''
+        }, codeMatch);
+        result = localRes.text;
+      } else {
+        result = text;
+      }
+    }
   }
 
   // Store in cache for all future requests

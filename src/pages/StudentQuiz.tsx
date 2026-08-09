@@ -417,31 +417,24 @@ export const StudentQuiz: React.FC = () => {
             )}
 
             <h2 className="text-lg md:text-xl font-medium text-white leading-relaxed">
-              {currentQuestion.questionText}
+              {isTranslatingCurrentQ ? (
+                <span className="flex items-center gap-2 text-sm text-[#9ca3af]">
+                  <Sparkles className="w-4 h-4 text-[#3ecf8e] animate-spin shrink-0" />
+                  <span className="animate-pulse">Translating question into {currentLangInfo.name}…</span>
+                </span>
+              ) : selectedLang !== 'en' && effectiveTranslation?.text ? (
+                effectiveTranslation.text
+              ) : (
+                currentQuestion.questionText
+              )}
             </h2>
 
-            {/* Translation Box for Selected Language */}
-            {selectedLang !== 'en' && (
-              <div className="mt-1 rounded-xl border border-white/[0.06] bg-[#1c1c1c] overflow-hidden animate-fade-in">
-                {/* Header row */}
-                <div className="flex items-center gap-2 px-4 py-2 border-b border-white/[0.06]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e]" />
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-[#52525b]">Translation</span>
-                  <span className="ml-auto badge-emerald">{currentLangInfo.native}</span>
-                </div>
-                {/* Content */}
-                <div className="px-4 py-3">
-                  {isTranslatingCurrentQ ? (
-                    <div className="flex items-center gap-2 text-xs text-[#9ca3af]">
-                      <Sparkles className="w-3.5 h-3.5 text-[#3ecf8e] animate-spin shrink-0" />
-                      <span className="animate-pulse">Translating into {currentLangInfo.name}…</span>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-[#ededed] leading-relaxed font-medium">
-                      {effectiveTranslation?.text || currentQuestion.questionText}
-                    </p>
-                  )}
-                </div>
+            {/* Original English Sub-Badge when translated */}
+            {selectedLang !== 'en' && !isTranslatingCurrentQ && (
+              <div className="pt-1 flex items-center gap-2 text-xs text-[#71717a]">
+                <span className="px-2 py-0.5 rounded bg-[#1c1c1c] border border-white/[0.06] font-mono text-[10px] uppercase text-[#9ca3af]">
+                  Original (EN): {currentQuestion.questionText}
+                </span>
               </div>
             )}
           </div>
