@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Sparkles, Bot, Zap, ArrowLeft, RefreshCw,
-  Sliders, Brain, Target, BookOpen, ChevronRight
+  Sliders, Brain, Target, BookOpen, ChevronRight,
+  PieChart, Scale, Shapes, Hash
 } from 'lucide-react';
 import type { MathTopic, DifficultyTier } from '../types/schema';
 import { generateAIQuiz } from '../services/aiQuizService';
@@ -198,6 +199,37 @@ export const AIQuizGenerator: React.FC = () => {
             placeholder="e.g., Create word problems about fraction addition with recipe ingredients…"
             className="w-full bg-[#1c1c1c] border border-white/[0.08] rounded-lg p-3 text-sm text-white placeholder-[#52525b] focus:outline-none focus:border-[#3ecf8e]/60 transition-colors resize-none"
           />
+        </div>
+
+        {/* Math Topic Selector */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-[#9ca3af]">Target Math Topic</label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              { id: 'fractions', label: 'Fractions', icon: PieChart },
+              { id: 'ratios', label: 'Ratios', icon: Scale },
+              { id: 'geometry', label: 'Geometry', icon: Shapes },
+              { id: 'decimals', label: 'Decimals', icon: Hash },
+            ].map((t) => {
+              const Icon = t.icon;
+              const isSelected = topic === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTopic(t.id as MathTopic)}
+                  className={`py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border transition-all ${
+                    isSelected
+                      ? 'bg-[#3ecf8e]/10 text-[#3ecf8e] border-[#3ecf8e]/40 shadow-sm shadow-[#3ecf8e]/10'
+                      : 'bg-[#1c1c1c] text-[#9ca3af] border-white/[0.06] hover:border-white/[0.10] hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{t.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
 

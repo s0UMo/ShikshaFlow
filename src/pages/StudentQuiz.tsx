@@ -324,26 +324,28 @@ export const StudentQuiz: React.FC = () => {
         </div>
       </div>
 
-      {/* ── TOPIC SELECTOR ── */}
-      <div className="card-feature-light p-2 flex items-center gap-1 overflow-x-auto">
-        {TOPICS.map((topic) => {
-          const TopicIcon = TOPIC_META[topic].icon;
-          return (
-            <button
-              key={topic}
-              onClick={() => setSelectedTopic(topic)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold flex-1 justify-center transition-all whitespace-nowrap ${
-                selectedTopic === topic
-                  ? 'bg-[#3ecf8e] text-[#0a0a0a] shadow-md shadow-[#3ecf8e]/20'
-                  : 'text-[#9ca3af] hover:text-white hover:bg-[#1c1c1c]'
-              }`}
-            >
-              <TopicIcon className="w-4 h-4 shrink-0" />
-              <span>{TOPIC_META[topic].label}</span>
-            </button>
-          );
-        })}
-      </div>
+      {/* ── TOPIC SELECTOR (Only shown for standard quizzes) ── */}
+      {!isAIQuiz && (
+        <div className="card-feature-light p-2 flex items-center gap-1 overflow-x-auto">
+          {TOPICS.map((topic) => {
+            const TopicIcon = TOPIC_META[topic].icon;
+            return (
+              <button
+                key={topic}
+                onClick={() => setSelectedTopic(topic)}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold flex-1 justify-center transition-all whitespace-nowrap ${
+                  selectedTopic === topic
+                    ? 'bg-[#3ecf8e] text-[#0a0a0a] shadow-md shadow-[#3ecf8e]/20'
+                    : 'text-[#9ca3af] hover:text-white hover:bg-[#1c1c1c]'
+                }`}
+              >
+                <TopicIcon className="w-4 h-4 shrink-0" />
+                <span>{TOPIC_META[topic].label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* ── STREAK & USER BAR ── */}
       <div className="flex items-center justify-between px-1">
@@ -417,24 +419,31 @@ export const StudentQuiz: React.FC = () => {
             )}
 
             <h2 className="text-lg md:text-xl font-medium text-white leading-relaxed">
-              {isTranslatingCurrentQ ? (
-                <span className="flex items-center gap-2 text-sm text-[#9ca3af]">
-                  <Sparkles className="w-4 h-4 text-[#3ecf8e] animate-spin shrink-0" />
-                  <span className="animate-pulse">Translating question into {currentLangInfo.name}…</span>
-                </span>
-              ) : selectedLang !== 'en' && effectiveTranslation?.text ? (
-                effectiveTranslation.text
-              ) : (
-                currentQuestion.questionText
-              )}
+              {currentQuestion.questionText}
             </h2>
 
-            {/* Original English Sub-Badge when translated */}
-            {selectedLang !== 'en' && !isTranslatingCurrentQ && (
-              <div className="pt-1 flex items-center gap-2 text-xs text-[#71717a]">
-                <span className="px-2 py-0.5 rounded bg-[#1c1c1c] border border-white/[0.06] font-mono text-[10px] uppercase text-[#9ca3af]">
-                  Original (EN): {currentQuestion.questionText}
-                </span>
+            {/* Translation Box for Selected Language */}
+            {selectedLang !== 'en' && (
+              <div className="mt-1 rounded-xl border border-white/[0.06] bg-[#1c1c1c] overflow-hidden animate-fade-in">
+                {/* Header row */}
+                <div className="flex items-center gap-2 px-4 py-2 border-b border-white/[0.06]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e]" />
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-[#52525b]">Translation</span>
+                  <span className="ml-auto badge-emerald">{currentLangInfo.native}</span>
+                </div>
+                {/* Content */}
+                <div className="px-4 py-3">
+                  {isTranslatingCurrentQ ? (
+                    <div className="flex items-center gap-2 text-xs text-[#9ca3af]">
+                      <Sparkles className="w-3.5 h-3.5 text-[#3ecf8e] animate-spin shrink-0" />
+                      <span className="animate-pulse">Translating into {currentLangInfo.name}…</span>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[#ededed] leading-relaxed font-medium">
+                      {effectiveTranslation?.text || currentQuestion.questionText}
+                    </p>
+                  )}
+                </div>
               </div>
             )}
           </div>
