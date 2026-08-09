@@ -2,16 +2,21 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   CheckCircle2, XCircle, ArrowRight, ArrowLeft,
-  Sparkles, Trophy, Clock, BrainCircuit, Flame, X
+  Sparkles, Trophy, Clock, BrainCircuit, Flame, X,
+  PieChart, Scale, Shapes, Hash
 } from 'lucide-react';
 import type { Question, MathTopic, DifficultyTier, StudentProgress, Attempt } from '../types/schema';
-import { SEED_QUESTIONS } from '../data/seedQuestions';
+import { getAllQuestionsLocal, subscribeQuestions } from '../services/questionService';
 import { evaluateAdaptiveStep } from '../engine/adaptiveEngine';
 import { db } from '../services/firebase';
 import { doc, setDoc, collection, addDoc } from 'firebase/firestore';
 import { queueAttemptOffline, syncOfflineQueueToFirestore } from '../services/offlineDb';
 import { checkBadgesToAward } from '../services/badgeService';
 import type { Badge } from '../services/badgeService';
+import { SUPPORTED_LANGUAGES, getSelectedLanguage } from '../services/i18nService';
+import type { LanguageCode } from '../services/i18nService';
+import { translateQuestionContent } from '../services/translationEngine';
+import { translateTextWithAI } from '../services/aiTranslationService';
 
 // Badge color map: id -> tailwind gradient + glow classes
 const BADGE_COLORS: Record<string, { bg: string; border: string; glow: string; text: string }> = {
@@ -26,11 +31,11 @@ const BADGE_COLORS: Record<string, { bg: string; border: string; glow: string; t
 
 const TOPICS: MathTopic[] = ['fractions', 'ratios', 'geometry', 'decimals'];
 
-const TOPIC_META: Record<MathTopic, { emoji: string; label: string }> = {
-  fractions: { emoji: '½', label: 'Fractions' },
-  ratios:    { emoji: '∶', label: 'Ratios' },
-  geometry:  { emoji: '△', label: 'Geometry' },
-  decimals:  { emoji: '0.', label: 'Decimals' },
+const TOPIC_META: Record<MathTopic, { icon: any; label: string }> = {
+  fractions: { icon: PieChart, label: 'Fractions' },
+  ratios:    { icon: Scale,    label: 'Ratios' },
+  geometry:  { icon: Shapes,   label: 'Geometry' },
+  decimals:  { icon: Hash,     label: 'Decimals' },
 };
 
 const TIER_STYLES: Record<DifficultyTier, string> = {
@@ -78,7 +83,88 @@ export const StudentQuiz: React.FC = () => {
   const isAIQuiz = Boolean(customQuestions && customQuestions.length > 0);
   const [aiQuestionIndex, setAiQuestionIndex] = useState<number>(0);
 
-  useEffect(() => { loadTopicProgress(selectedTopic); }, [selectedTopic]);
+  const [allQuestions, setAllQuestions] = useState<Question[]>(getAllQuestionsLocal());
+  const [selectedLang, setSelectedLang] = useState<LanguageCode>(getSelectedLanguage());
+
+  useEffect(() => {
+    const handleLangChange = () => {
+      setSelectedLang(getSelectedLanguage());
+    };
+    window.addEventListener('shiksha_lang_changed', handleLangChange);
+    window.addEventListener('storage', handleLangChange);
+    return () => {
+      window.removeEventListener('shiksha_lang_changed', handleLangChange);
+      window.removeEventListener('storage', handleLangChange);
+    };
+  }, []);
+
+  const [asyncTranslation, setAsyncTranslation] = useState<{ text: string; explanation: string; options?: string[] } | null>(null);
+  const [isTranslatingCurrentQ, setIsTranslatingCurrentQ] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!currentQuestion || selectedLang === 'en') {
+      setAsyncTranslation(null);
+      setIsTranslatingCurrentQ(false);
+      return;
+    }
+
+    const localResult = translateQuestionContent(currentQuestion, selectedLang);
+    const isTextUntranslated = localResult.text === currentQuestion.questionText;
+    const isExpUntranslated = localResult.explanation === currentQuestion.explanation;
+
+    // For non-Hindi languages, options must also be translated via AI if they are not pure math/numbers
+    const isOptionsUntranslated = selectedLang !== 'hi' || !localResult.options;
+
+    const targetLangName = SUPPORTED_LANGUAGES.find(l => l.code === selectedLang)?.name || 'Hindi';
+
+    if (isTextUntranslated || isExpUntranslated || isOptionsUntranslated) {
+      setIsTranslatingCurrentQ(true);
+
+      const translateOptionsPromise = isOptionsUntranslated
+        ? Promise.all(
+            currentQuestion.options.map(opt => {
+              // Pure math expressions or numbers don't need AI text translation
+              if (/^[\d\s\/\+\-\*\=\.\(\)\,]+$/.test(opt.trim())) {
+                return Promise.resolve(opt);
+              }
+              return translateTextWithAI(opt, targetLangName);
+            })
+          )
+        : Promise.resolve(localResult.options || currentQuestion.options);
+
+      Promise.all([
+        isTextUntranslated
+          ? translateTextWithAI(currentQuestion.questionText, targetLangName)
+          : Promise.resolve(localResult.text),
+        isExpUntranslated
+          ? translateTextWithAI(currentQuestion.explanation, targetLangName)
+          : Promise.resolve(localResult.explanation),
+        translateOptionsPromise
+      ]).then(([text, explanation, options]) => {
+        setAsyncTranslation({
+          text: text || localResult.text,
+          explanation: explanation || localResult.explanation,
+          options: options || currentQuestion.options
+        });
+      }).catch(err => {
+        console.warn('AI Translation error in StudentQuiz:', err);
+        setAsyncTranslation(localResult);
+      }).finally(() => {
+        setIsTranslatingCurrentQ(false);
+      });
+    } else {
+      setAsyncTranslation(localResult);
+    }
+  }, [currentQuestion, selectedLang]);
+
+  const effectiveTranslation = asyncTranslation || (currentQuestion ? translateQuestionContent(currentQuestion, selectedLang) : null);
+
+  useEffect(() => {
+    const unsub = subscribeQuestions(setAllQuestions);
+    return () => unsub();
+  }, []);
+
+  useEffect(() => { loadTopicProgress(selectedTopic); }, [selectedTopic, allQuestions]);
 
   const loadTopicProgress = (topic: MathTopic) => {
     const progressRaw = localStorage.getItem('shiksha_progress');
@@ -105,7 +191,7 @@ export const StudentQuiz: React.FC = () => {
     } else {
       const result = evaluateAdaptiveStep({
         topic, currentTier: tier, rollingHistory: history,
-        availableQuestions: SEED_QUESTIONS, answeredQuestionIds: [],
+        availableQuestions: allQuestions, answeredQuestionIds: [],
       });
       setCurrentQuestion(result.nextQuestion);
     }
@@ -134,7 +220,7 @@ export const StudentQuiz: React.FC = () => {
 
     const engineResult = evaluateAdaptiveStep({
       topic: selectedTopic, currentTier, rollingHistory: updatedHistory,
-      availableQuestions: SEED_QUESTIONS, answeredQuestionIds: newAnsweredIds,
+      availableQuestions: allQuestions, answeredQuestionIds: newAnsweredIds,
     });
     const nextTier = engineResult.nextTier;
     setCurrentTier(nextTier);
@@ -152,19 +238,14 @@ export const StudentQuiz: React.FC = () => {
     else if (engineResult.demoted) setTierMessage(`💡 Adjusted to ${nextTier.toUpperCase()} for practice`);
     else setTierMessage(null);
 
-    await persistAttempt(currentQuestion, correct, selectedOption, durationMs, nextTier, updatedHistory, newStreak, updatedBadges);
-  };
-
-  const persistAttempt = async (
-    q: Question, correct: boolean, optionIdx: number,
-    responseTimeMs: number, newTier: DifficultyTier,
-    updatedHistory: boolean[], newStreak: number, updatedBadges: string[]
-  ) => {
+    const progressList: StudentProgress[] = JSON.parse(localStorage.getItem('shiksha_progress') || '[]');
+    const idx = progressList.findIndex((p) => p.studentId === user.id && p.topic === selectedTopic);
+    const correctCount = updatedHistory.filter(Boolean).length;
     const attempt: Attempt = {
       id: `attempt_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-      studentId: user.id, questionId: q.id, topic: selectedTopic,
-      difficulty: q.difficulty, isCorrect: correct,
-      selectedAnswerIndex: optionIdx, responseTimeMs,
+      studentId: user.id, questionId: currentQuestion.id, topic: selectedTopic,
+      difficulty: currentQuestion.difficulty, isCorrect: correct,
+      selectedAnswerIndex: selectedOption, responseTimeMs: durationMs,
       timestamp: Date.now(), synced: navigator.onLine,
     };
 
@@ -173,12 +254,9 @@ export const StudentQuiz: React.FC = () => {
     localStorage.setItem('shiksha_attempts', JSON.stringify(existingAttempts));
     await queueAttemptOffline(attempt);
 
-    const progressList: StudentProgress[] = JSON.parse(localStorage.getItem('shiksha_progress') || '[]');
-    const idx = progressList.findIndex((p) => p.studentId === user.id && p.topic === selectedTopic);
-    const correctCount = updatedHistory.filter(Boolean).length;
     const updatedProgress: StudentProgress = {
       id: `${user.id}_${selectedTopic}`, studentId: user.id, topic: selectedTopic,
-      currentTier: newTier, rollingHistory: updatedHistory.slice(-5),
+      currentTier: nextTier, rollingHistory: updatedHistory.slice(-5),
       rollingAccuracy: Math.round((correctCount / updatedHistory.length) * 100),
       totalAttempts: (idx >= 0 ? progressList[idx].totalAttempts : 0) + 1,
       correctCount: (idx >= 0 ? progressList[idx].correctCount : 0) + (correct ? 1 : 0),
@@ -215,12 +293,14 @@ export const StudentQuiz: React.FC = () => {
     } else {
       const result = evaluateAdaptiveStep({
         topic: selectedTopic, currentTier, rollingHistory,
-        availableQuestions: SEED_QUESTIONS, answeredQuestionIds: answeredIds,
+        availableQuestions: allQuestions, answeredQuestionIds: answeredIds,
       });
       setCurrentQuestion(result.nextQuestion);
     }
     setStartTime(Date.now());
   };
+
+  const currentLangInfo = SUPPORTED_LANGUAGES.find(l => l.code === selectedLang) || SUPPORTED_LANGUAGES[0];
 
   return (
     <div className="w-full max-w-3xl mx-auto animate-fade-in pb-16 space-y-5">
@@ -228,11 +308,10 @@ export const StudentQuiz: React.FC = () => {
       {/* ── BACK / HEADER ── */}
       <div className="flex items-center justify-between">
         <button onClick={() => navigate('/student')}
-          className="flex items-center gap-1.5 text-xs text-[#9ca3af] hover:text-white transition-colors group">
-          <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
-          Back to Dashboard
+          className="flex items-center gap-1.5 text-xs text-[#9ca3af] hover:text-white transition-colors">
+          <ArrowLeft className="w-4 h-4" /> Back to Dashboard
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {isAIQuiz && (
             <span className="px-2.5 py-1 rounded-full border bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500/40 text-purple-300 text-[11px] font-bold uppercase tracking-wider flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-purple-400" /> AI Generated Quiz
@@ -247,20 +326,23 @@ export const StudentQuiz: React.FC = () => {
 
       {/* ── TOPIC SELECTOR ── */}
       <div className="card-feature-light p-2 flex items-center gap-1 overflow-x-auto">
-        {TOPICS.map((topic) => (
-          <button
-            key={topic}
-            onClick={() => setSelectedTopic(topic)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold flex-1 justify-center transition-all whitespace-nowrap ${
-              selectedTopic === topic
-                ? 'bg-[#3ecf8e] text-[#0a0a0a] shadow-md shadow-[#3ecf8e]/20'
-                : 'text-[#9ca3af] hover:text-white hover:bg-[#1c1c1c]'
-            }`}
-          >
-            <span className="font-mono text-base leading-none">{TOPIC_META[topic].emoji}</span>
-            <span>{TOPIC_META[topic].label}</span>
-          </button>
-        ))}
+        {TOPICS.map((topic) => {
+          const TopicIcon = TOPIC_META[topic].icon;
+          return (
+            <button
+              key={topic}
+              onClick={() => setSelectedTopic(topic)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold flex-1 justify-center transition-all whitespace-nowrap ${
+                selectedTopic === topic
+                  ? 'bg-[#3ecf8e] text-[#0a0a0a] shadow-md shadow-[#3ecf8e]/20'
+                  : 'text-[#9ca3af] hover:text-white hover:bg-[#1c1c1c]'
+              }`}
+            >
+              <TopicIcon className="w-4 h-4 shrink-0" />
+              <span>{TOPIC_META[topic].label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* ── STREAK & USER BAR ── */}
@@ -338,10 +420,30 @@ export const StudentQuiz: React.FC = () => {
               {currentQuestion.questionText}
             </h2>
 
-            <div className="flex items-start gap-2 p-3 rounded-lg bg-[#141414] border border-white/[0.06] text-xs text-[#9ca3af]">
-              <span className="text-[#3ecf8e] font-bold shrink-0 mt-0.5">हि</span>
-              <span className="leading-relaxed">{currentQuestion.questionTextHindi}</span>
-            </div>
+            {/* Translation Box for Selected Language */}
+            {selectedLang !== 'en' && (
+              <div className="mt-1 rounded-xl border border-white/[0.06] bg-[#1c1c1c] overflow-hidden animate-fade-in">
+                {/* Header row */}
+                <div className="flex items-center gap-2 px-4 py-2 border-b border-white/[0.06]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e]" />
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-[#52525b]">Translation</span>
+                  <span className="ml-auto badge-emerald">{currentLangInfo.native}</span>
+                </div>
+                {/* Content */}
+                <div className="px-4 py-3">
+                  {isTranslatingCurrentQ ? (
+                    <div className="flex items-center gap-2 text-xs text-[#9ca3af]">
+                      <Sparkles className="w-3.5 h-3.5 text-[#3ecf8e] animate-spin shrink-0" />
+                      <span className="animate-pulse">Translating into {currentLangInfo.name}…</span>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[#ededed] leading-relaxed font-medium">
+                      {effectiveTranslation?.text || currentQuestion.questionText}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Options */}
@@ -369,7 +471,13 @@ export const StudentQuiz: React.FC = () => {
                   }`}>
                     {String.fromCharCode(65 + index)}
                   </span>
-                  <span className="text-sm leading-snug">{option}</span>
+                  <span className="text-sm leading-snug">
+                    {effectiveTranslation?.options && effectiveTranslation.options[index]
+                      ? effectiveTranslation.options[index]
+                      : (selectedLang === 'hi' && currentQuestion.optionsHindi && currentQuestion.optionsHindi[index]
+                          ? currentQuestion.optionsHindi[index]
+                          : option)}
+                  </span>
                 </button>
               );
             })}
@@ -403,24 +511,65 @@ export const StudentQuiz: React.FC = () => {
 
           {/* Explanation (after submit) */}
           {isSubmitted && (
-            <div className="px-6 py-5 space-y-2 bg-[#141414] rounded-b-xl animate-slide-up">
-              <h4 className="text-[11px] font-semibold text-[#3ecf8e] uppercase tracking-wider">Explanation</h4>
-              <p className="text-xs text-[#ededed] leading-relaxed">{currentQuestion.explanation}</p>
-              <p className="text-xs text-[#9ca3af] leading-relaxed italic">
-                <strong className="not-italic text-[#3ecf8e]/80">हिंदी:</strong> {currentQuestion.explanationHindi}
-              </p>
+            <div className="border-t border-white/[0.06] animate-slide-up">
+              {/* Section header */}
+              <div className="flex items-center gap-2 px-6 pt-4 pb-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#3ecf8e]" />
+                <h4 className="text-[10px] font-semibold uppercase tracking-widest text-[#52525b]">Explanation</h4>
+                {selectedLang !== 'en' && (
+                  <span className="ml-auto badge-emerald">{currentLangInfo.native}</span>
+                )}
+              </div>
+
+              <div className="px-6 pb-6 space-y-3">
+                {/* Translated explanation (primary when language selected) */}
+                {selectedLang !== 'en' ? (
+                  <>
+                    {isTranslatingCurrentQ ? (
+                      <div className="flex items-center gap-2 text-xs text-[#9ca3af]">
+                        <Sparkles className="w-3.5 h-3.5 text-[#3ecf8e] animate-spin shrink-0" />
+                        <span className="animate-pulse">Translating explanation…</span>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-[#ededed] leading-relaxed">
+                        {effectiveTranslation?.explanation || currentQuestion.explanation}
+                      </p>
+                    )}
+                    {/* English fallback below */}
+                    {effectiveTranslation?.explanation && effectiveTranslation.explanation !== currentQuestion.explanation && (
+                      <div className="pt-3 border-t border-white/[0.04]">
+                        <p className="text-[11px] text-[#52525b] font-semibold uppercase tracking-wider mb-1">English</p>
+                        <p className="text-xs text-[#9ca3af] leading-relaxed">{currentQuestion.explanation}</p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-[#ededed] leading-relaxed">{currentQuestion.explanation}</p>
+                )}
+              </div>
             </div>
           )}
         </div>
       ) : (
         <div className="card-feature-light p-16 text-center space-y-4 animate-fade-in">
           <Trophy className="w-12 h-12 text-[#3ecf8e] mx-auto" style={{ animation: 'bounce-soft 2s ease-in-out infinite' }} />
-          <h3 className="text-xl font-bold text-white">Topic Complete!</h3>
-          <p className="text-sm text-[#9ca3af]">All questions answered for <strong className="text-white capitalize">{selectedTopic}</strong>.</p>
-          <button onClick={() => { setAnsweredIds([]); loadTopicProgress(selectedTopic); }}
-            className="btn-primary-green px-6 py-2.5 font-semibold">
-            Practice Again
-          </button>
+          <h3 className="text-xl font-bold text-white">{isAIQuiz ? 'AI Quiz Session Complete!' : 'Topic Complete!'}</h3>
+          <p className="text-sm text-[#9ca3af]">
+            {isAIQuiz
+              ? 'Great job completing your AI-generated practice session!'
+              : <>All questions answered for <strong className="text-white capitalize">{selectedTopic}</strong>.</>}
+          </p>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            {isAIQuiz ? (
+              <button onClick={() => navigate('/student/ai-quiz')} className="btn-primary-green px-6 py-2.5 font-semibold">
+                Generate Another AI Quiz
+              </button>
+            ) : (
+              <button onClick={() => { setAnsweredIds([]); loadTopicProgress(selectedTopic); }} className="btn-primary-green px-6 py-2.5 font-semibold">
+                Practice Again
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

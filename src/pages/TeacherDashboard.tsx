@@ -1,33 +1,35 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Users, AlertTriangle, RefreshCw, BarChart3,
   CheckCircle2, XCircle, Clock, Search, X, ChevronRight,
-  ShieldCheck, Award, TrendingUp, Activity, Filter, ArrowUpDown,
-  Sparkles, Wifi, WifiOff, Circle
+  Award, TrendingUp, Activity, Filter, ArrowUpDown,
+  Layers, PlusCircle, BookOpen, Pencil, Trash2,
+  PieChart, Scale, Shapes, Hash
 } from 'lucide-react';
-import type { StudentProgress, User, MathTopic, Attempt } from '../types/schema';
+import type { StudentProgress, User, MathTopic, Attempt, Question } from '../types/schema';
 import { collection, onSnapshot } from 'firebase/firestore';
 import type { Unsubscribe } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { BADGE_DEFINITIONS } from '../services/badgeService';
+import { getAllQuestionsLocal, subscribeQuestions, deleteTeacherQuestion } from '../services/questionService';
+import { AddQuestionModal } from '../components/AddQuestionModal';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const TOPICS: MathTopic[] = ['fractions', 'ratios', 'geometry', 'decimals'];
-const TOPIC_META: Record<MathTopic, { emoji: string; label: string }> = {
-  fractions: { emoji: '½', label: 'Fractions' },
-  ratios:    { emoji: '∶', label: 'Ratios'    },
-  geometry:  { emoji: '△', label: 'Geometry'  },
-  decimals:  { emoji: '0.', label: 'Decimals' },
+const TOPIC_META: Record<MathTopic, { icon: any; label: string }> = {
+  fractions: { icon: PieChart, label: 'Fractions' },
+  ratios:    { icon: Scale,    label: 'Ratios'    },
+  geometry:  { icon: Shapes,   label: 'Geometry'  },
+  decimals:  { icon: Hash,     label: 'Decimals' },
 };
 
 type SortField    = 'name' | 'accuracy' | 'attempts' | 'lastActive' | 'stuck';
 type FilterStatus = 'all' | 'stuck' | 'hard' | 'medium' | 'easy';
-type SyncStatus   = 'live' | 'local' | 'loading';
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
 function relativeTime(ts: number): string {
   const diff = Date.now() - ts;
-  if (diff < 60_000)  return 'just now';
+  if (diff < 60_000)   return 'just now';
   if (diff < 3600_000) return `${Math.floor(diff / 60_000)}m ago`;
   if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}h ago`;
   return `${Math.floor(diff / 86400_000)}d ago`;
@@ -40,22 +42,34 @@ export const TeacherDashboard: React.FC = () => {
   const [students,     setStudents]     = useState<User[]>([]);
   const [progressList, setProgressList] = useState<StudentProgress[]>([]);
   const [attempts,     setAttempts]     = useState<Attempt[]>([]);
+  const [questions,    setQuestions]    = useState<Question[]>(getAllQuestionsLocal());
 
   // UI state
-  const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
-  const [searchQuery,     setSearchQuery]     = useState('');
-  const [topicFilter,     setTopicFilter]     = useState<MathTopic | 'all'>('all');
-  const [statusFilter,    setStatusFilter]    = useState<FilterStatus>('all');
-  const [sortBy,          setSortBy]          = useState<SortField>('name');
-  const [sortAsc,         setSortAsc]         = useState(true);
-  const [activeTab,       setActiveTab]       = useState<'heatmap' | 'topics' | 'activity'>('heatmap');
-  const [syncStatus,      setSyncStatus]      = useState<SyncStatus>('loading');
-  const [isRefreshing,    setIsRefreshing]    = useState(false);
-  const [liveCount,       setLiveCount]       = useState(0); // tracks new attempts since mount
+  const [selectedStudent,   setSelectedStudent]   = useState<User | null>(null);
+  const [searchQuery,       setSearchQuery]       = useState('');
+  const [topicFilter,       setTopicFilter]       = useState<MathTopic | 'all'>('all');
+  const [statusFilter,      setStatusFilter]      = useState<FilterStatus>('all');
+  const [sortBy,            setSortBy]            = useState<SortField>('name');
+  const [sortAsc,           setSortAsc]           = useState(true);
+  const [activeTab,         setActiveTab]         = useState<'heatmap' | 'topics' | 'questions'>('heatmap');
+  const [isRefreshing,      setIsRefreshing]      = useState(false);
+  const [isAddQuestionOpen, setIsAddQuestionOpen] = useState(false);
+  const [editingQuestion, setEditingQuestion]     = useState<Question | null>(null);
+  const [deletingQuestionId, setDeletingQuestionId] = useState<string | null>(null);
 
-  // Refs for keeping live count without stale closures
-  const initialAttemptCount = useRef<number | null>(null);
-  const feedRef = useRef<HTMLDivElement>(null);
+  const handleDeleteQuestion = async (qId: string) => {
+    if (window.confirm('Are you sure you want to delete this question?')) {
+      setDeletingQuestionId(qId);
+      try {
+        await deleteTeacherQuestion(qId);
+        setQuestions(prev => prev.filter(q => q.id !== qId));
+      } catch (err) {
+        console.error('Failed to delete question:', err);
+      } finally {
+        setDeletingQuestionId(null);
+      }
+    }
+  };
 
   // ── Load from localStorage ──────────────────────────────────────────────────
   const loadLocal = useCallback(() => {
@@ -65,23 +79,13 @@ export const TeacherDashboard: React.FC = () => {
       const rawA = localStorage.getItem('shiksha_attempts');
       if (rawS) setStudents(JSON.parse(rawS).filter((u: User) => u.role === 'student'));
       if (rawP) setProgressList(JSON.parse(rawP));
-      if (rawA) {
-        const parsed: Attempt[] = JSON.parse(rawA);
-        setAttempts(parsed);
-        // Track new live attempts
-        if (initialAttemptCount.current === null) {
-          initialAttemptCount.current = parsed.length;
-        } else {
-          setLiveCount(Math.max(0, parsed.length - initialAttemptCount.current));
-        }
-      }
+      if (rawA) setAttempts(JSON.parse(rawA));
     } catch (e) { console.error('loadLocal error:', e); }
   }, []);
 
   // ── Firestore realtime listeners ────────────────────────────────────────────
   useEffect(() => {
     loadLocal();
-    setSyncStatus(navigator.onLine ? 'loading' : 'local');
 
     const unsubs: Unsubscribe[] = [];
 
@@ -94,8 +98,7 @@ export const TeacherDashboard: React.FC = () => {
               setStudents(data);
               localStorage.setItem('shiksha_students', JSON.stringify(data));
             }
-            setSyncStatus('live');
-          }, () => setSyncStatus('local'))
+          })
         );
         unsubs.push(
           onSnapshot(collection(db, 'studentProgress'), (snap) => {
@@ -104,33 +107,25 @@ export const TeacherDashboard: React.FC = () => {
               setProgressList(data);
               localStorage.setItem('shiksha_progress', JSON.stringify(data));
             }
-            setSyncStatus('live');
-          }, () => setSyncStatus('local'))
+          })
         );
         unsubs.push(
           onSnapshot(collection(db, 'attempts'), (snap) => {
             if (!snap.empty) {
               const data = snap.docs.map(d => d.data() as Attempt);
-              if (initialAttemptCount.current === null) {
-                initialAttemptCount.current = data.length;
-              } else {
-                setLiveCount(Math.max(0, data.length - initialAttemptCount.current));
-              }
               setAttempts(data);
               localStorage.setItem('shiksha_attempts', JSON.stringify(data));
-              // Auto-scroll activity feed to top
-              setTimeout(() => feedRef.current?.scrollTo({ top: 0, behavior: 'smooth' }), 100);
             }
-            setSyncStatus('live');
-          }, () => setSyncStatus('local'))
+          })
         );
       } catch (err) {
         console.warn('Firestore listener error:', err);
-        setSyncStatus('local');
       }
     }
 
-    // Poll localStorage every 5 s (catches same-browser student activity)
+    const unsubQuestions = subscribeQuestions(setQuestions);
+    unsubs.push(unsubQuestions);
+
     const pollId = setInterval(loadLocal, 5000);
     const onStorage = () => loadLocal();
     window.addEventListener('storage', onStorage);
@@ -227,24 +222,7 @@ export const TeacherDashboard: React.FC = () => {
 
   const sortedAttempts = [...attempts].sort((a, b) => b.timestamp - a.timestamp);
 
-  // ─── Sync badge ───────────────────────────────────────────────────────────
-  const SyncBadge = () => (
-    <span className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
-      syncStatus === 'live'
-        ? 'bg-[#3ecf8e]/10 text-[#3ecf8e] border-[#3ecf8e]/30'
-        : syncStatus === 'loading'
-        ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-        : 'bg-[#1c1c1c] text-[#9ca3af] border-white/[0.06]'
-    }`}>
-      {syncStatus === 'live'
-        ? <><Circle className="w-2 h-2 fill-current animate-pulse" /> Realtime</>
-        : syncStatus === 'loading'
-        ? <><RefreshCw className="w-3 h-3 animate-spin" /> Connecting...</>
-        : <><WifiOff className="w-3 h-3" /> Local cache</>}
-    </span>
-  );
-
-  // ─── Tier pill ────────────────────────────────────────────────────────────
+  // ─── Tier pill style ────────────────────────────────────────────────────────
   function tierStyle(tier: string, stuck: boolean) {
     if (stuck) return 'bg-rose-500/15 text-rose-300 border-rose-500/30';
     if (tier === 'hard')   return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
@@ -257,29 +235,28 @@ export const TeacherDashboard: React.FC = () => {
     <div className="w-full max-w-7xl mx-auto space-y-6 animate-fade-in pb-16">
 
       {/* ── PAGE HEADER ── */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="badge-emerald">Grade 6 Math</span>
-            <SyncBadge />
-            {liveCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 text-[11px] font-mono animate-pulse">
-                +{liveCount} new since load
-              </span>
-            )}
-          </div>
           <h1 className="text-2xl font-medium text-white tracking-tight flex items-center gap-2">
             <Users className="w-6 h-6 text-[#3ecf8e]" /> Class Analytics Dashboard
           </h1>
           <p className="text-xs text-[#52525b]">
-            {students.length} student{students.length !== 1 ? 's' : ''} · {attempts.length} total attempts · auto-refreshes every 5s
+            {students.length} student{students.length !== 1 ? 's' : ''} · {attempts.length} total attempts
           </p>
         </div>
 
-        <button onClick={handleRefresh}
-          className="btn-primary-green text-xs px-3.5 py-2 flex items-center gap-1.5 font-semibold">
-          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} /> Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsAddQuestionOpen(true)}
+            className="btn-primary-green text-xs px-3.5 py-2 flex items-center gap-1.5 font-semibold"
+          >
+            <PlusCircle className="w-4 h-4" /> Add Question
+          </button>
+          <button onClick={handleRefresh}
+            className="px-3.5 py-2 rounded-xl bg-[#1c1c1c] border border-white/[0.08] hover:border-white/[0.15] text-xs text-[#9ca3af] hover:text-white flex items-center gap-1.5 font-semibold transition-colors">
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} /> Refresh
+          </button>
+        </div>
       </div>
 
       {/* ── STAT CARDS ── */}
@@ -288,7 +265,7 @@ export const TeacherDashboard: React.FC = () => {
           {
             label: 'Total Students', icon: <Users className="w-4 h-4" />,
             value: students.length > 0 ? students.length : '—',
-            sub: filtered.length !== students.length ? `${filtered.length} match filter` : 'registered',
+            sub: filtered.length !== students.length ? `${filtered.length} shown` : 'registered',
             color: 'text-[#3ecf8e]'
           },
           {
@@ -299,12 +276,12 @@ export const TeacherDashboard: React.FC = () => {
           {
             label: 'Total Attempts', icon: <Activity className="w-4 h-4" />,
             value: attempts.length > 0 ? attempts.length : '—',
-            sub: liveCount > 0 ? `+${liveCount} new` : 'logged', color: 'text-purple-400'
+            sub: 'logged attempts', color: 'text-purple-400'
           },
           {
             label: 'Class Accuracy', icon: <TrendingUp className="w-4 h-4" />,
             value: avgAccuracy !== null ? `${avgAccuracy}%` : '—',
-            sub: 'rolling window avg', color: 'text-amber-400'
+            sub: 'rolling average', color: 'text-amber-400'
           },
         ].map(card => (
           <div key={card.label} className="card-feature-light p-4 space-y-2">
@@ -328,10 +305,10 @@ export const TeacherDashboard: React.FC = () => {
               <h2 className="text-sm font-semibold text-white">
                 Early Warning System
                 <span className="ml-2 px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-300 text-[11px] font-mono">
-                  {stuckItems.length} items
+                  {stuckItems.length} flagged
                 </span>
               </h2>
-              <p className="text-xs text-[#52525b]">Students with 2 consecutive wrong answers or &lt;40% rolling accuracy</p>
+              <p className="text-xs text-[#52525b]">Students with 2 consecutive wrong answers or &lt;40% accuracy</p>
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
@@ -360,12 +337,12 @@ export const TeacherDashboard: React.FC = () => {
       {/* ── TABS ── */}
       <div className="flex border-b border-white/[0.06] gap-1">
         {([
-          { id: 'heatmap',  label: 'Student Matrix',    icon: <BarChart3 className="w-4 h-4" /> },
-          { id: 'topics',   label: 'Topic Breakdown',   icon: <Sparkles  className="w-4 h-4" /> },
-          { id: 'activity', label: `Activity Feed ${attempts.length > 0 ? `(${attempts.length})` : ''}`, icon: <Activity className="w-4 h-4" /> },
+          { id: 'heatmap',   label: 'Student Matrix',  icon: <BarChart3 className="w-4 h-4" /> },
+          { id: 'topics',    label: 'Topic Breakdown', icon: <Layers    className="w-4 h-4" /> },
+          { id: 'questions', label: `Question Bank (${questions.length})`, icon: <BookOpen className="w-4 h-4" /> },
         ] as const).map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
-            className={`pb-3 px-1 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-all mr-3 ${
+            className={`pb-3 px-1 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-all mr-4 ${
               activeTab === tab.id
                 ? 'text-[#3ecf8e] border-[#3ecf8e]'
                 : 'text-[#9ca3af] border-transparent hover:text-white'
@@ -386,16 +363,20 @@ export const TeacherDashboard: React.FC = () => {
               {/* Topic pills */}
               <div className="flex items-center gap-0.5 bg-[#1c1c1c] p-0.5 rounded-lg border border-white/[0.06]">
                 <Filter className="w-3 h-3 text-[#52525b] mx-1.5" />
-                {(['all', ...TOPICS] as const).map(t => (
-                  <button key={t} onClick={() => setTopicFilter(t)}
-                    className={`text-[11px] px-2.5 py-1 rounded-md font-medium capitalize transition-all ${
-                      topicFilter === t
-                        ? 'bg-[#3ecf8e] text-[#0a0a0a] font-semibold'
-                        : 'text-[#9ca3af] hover:text-white'
-                    }`}>
-                    {t === 'all' ? 'All' : TOPIC_META[t].emoji + ' ' + t}
-                  </button>
-                ))}
+                {(['all', ...TOPICS] as const).map(t => {
+                  const TopicIcon = t !== 'all' ? TOPIC_META[t].icon : null;
+                  return (
+                    <button key={t} onClick={() => setTopicFilter(t)}
+                      className={`text-[11px] px-2.5 py-1 rounded-md font-medium capitalize transition-all flex items-center gap-1.5 ${
+                        topicFilter === t
+                          ? 'bg-[#3ecf8e] text-[#0a0a0a] font-semibold'
+                          : 'text-[#9ca3af] hover:text-white'
+                      }`}>
+                      {TopicIcon && <TopicIcon className="w-3 h-3 shrink-0" />}
+                      <span>{t === 'all' ? 'All' : t}</span>
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Status */}
@@ -438,38 +419,38 @@ export const TeacherDashboard: React.FC = () => {
           {/* Table */}
           <div className="overflow-x-auto">
             {students.length === 0 ? (
-              /* Empty state — no students yet */
               <div className="p-16 flex flex-col items-center gap-4 text-center">
                 <div className="p-4 rounded-2xl bg-[#1c1c1c] border border-white/[0.06]">
                   <Users className="w-8 h-8 text-[#3f3f46]" />
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-white">No students yet</p>
-                  <p className="text-xs text-[#52525b] mt-1">Students appear here once they register and take their first quiz.</p>
-                </div>
-                <div className="flex items-center gap-1.5 text-[11px] text-[#52525b]">
-                  <Wifi className="w-3.5 h-3.5" />
-                  {syncStatus === 'live' ? 'Listening for new students in realtime…' : 'Sync status: local cache only'}
+                  <p className="text-xs text-[#52525b] mt-1">Students will appear here once they take their first quiz.</p>
                 </div>
               </div>
             ) : filtered.length === 0 ? (
-              /* Filtered to zero */
               <div className="p-12 flex flex-col items-center gap-3 text-center">
                 <Search className="w-6 h-6 text-[#3f3f46]" />
                 <p className="text-sm text-[#9ca3af]">No students match your filters.</p>
                 <button onClick={() => { setSearchQuery(''); setStatusFilter('all'); setTopicFilter('all'); }}
-                  className="text-xs text-[#3ecf8e] underline">Clear filters</button>
+                  className="text-xs text-[#3ecf8e] underline cursor-pointer">Clear filters</button>
               </div>
             ) : (
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-white/[0.06]">
                     <th className="py-3 px-5 text-[11px] font-semibold text-[#52525b] uppercase tracking-wider">Student</th>
-                    {TOPICS.map(t => (
-                      <th key={t} className="py-3 px-4 text-[11px] font-semibold text-[#52525b] uppercase tracking-wider text-center">
-                        {TOPIC_META[t].emoji} {t}
-                      </th>
-                    ))}
+                    {TOPICS.map(t => {
+                      const TopicIcon = TOPIC_META[t].icon;
+                      return (
+                        <th key={t} className="py-3 px-4 text-[11px] font-semibold text-[#52525b] uppercase tracking-wider text-center">
+                          <span className="inline-flex items-center gap-1">
+                            <TopicIcon className="w-3 h-3 text-[#3ecf8e]" />
+                            <span className="capitalize">{t}</span>
+                          </span>
+                        </th>
+                      );
+                    })}
                     <th className="py-3 px-4 text-[11px] font-semibold text-[#52525b] uppercase tracking-wider text-center">Avg</th>
                     <th className="py-3 px-4 text-[11px] font-semibold text-[#52525b] uppercase tracking-wider text-center">Attempts</th>
                     <th className="py-3 px-4 text-[11px] font-semibold text-[#52525b] uppercase tracking-wider text-right">Last seen</th>
@@ -558,7 +539,14 @@ export const TeacherDashboard: React.FC = () => {
             <div key={topic} className="card-feature-light p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <span className="text-2xl font-mono leading-none">{TOPIC_META[topic].emoji}</span>
+                  {(() => {
+                    const TopicIcon = TOPIC_META[topic].icon;
+                    return (
+                      <div className="w-9 h-9 rounded-xl bg-[#1c1c1c] border border-white/[0.06] flex items-center justify-center text-[#3ecf8e] shrink-0">
+                        <TopicIcon className="w-4 h-4" />
+                      </div>
+                    );
+                  })()}
                   <div>
                     <h3 className="text-base font-bold text-white capitalize">{topic}</h3>
                     <p className="text-[11px] text-[#52525b]">{total} students with data</p>
@@ -614,69 +602,133 @@ export const TeacherDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* ─────────────────────────── TAB: ACTIVITY ──────────────────────────── */}
-      {activeTab === 'activity' && (
-        <div className="card-feature-light overflow-hidden">
-          <div className="px-5 py-3 bg-[#141414] border-b border-white/[0.06] flex items-center justify-between">
-            <span className="flex items-center gap-2 text-[11px] text-[#9ca3af]">
-              <span className={`w-2 h-2 rounded-full ${syncStatus === 'live' ? 'bg-[#3ecf8e] animate-ping' : 'bg-[#52525b]'}`} />
-              {syncStatus === 'live' ? 'Live feed — updates automatically' : 'Local cache — offline mode'}
-            </span>
-            <span className="text-[11px] text-[#52525b] font-mono">{attempts.length} total attempts</span>
+
+      {/* ─────────────────────────── TAB: QUESTIONS ─────────────────────────── */}
+      {activeTab === 'questions' && (
+        <div className="card-feature-light overflow-hidden space-y-4">
+          <div className="p-4 bg-[#141414] border-b border-white/[0.06] flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-[#3ecf8e]" />
+              <span className="text-xs font-semibold text-white">Active Question Bank ({questions.length})</span>
+            </div>
+            <button
+              onClick={() => setIsAddQuestionOpen(true)}
+              className="btn-primary-green text-xs px-3.5 py-1.5 font-semibold flex items-center gap-1.5"
+            >
+              <PlusCircle className="w-3.5 h-3.5" /> Add New Question
+            </button>
           </div>
 
-          <div ref={feedRef} className="divide-y divide-white/[0.04] max-h-[520px] overflow-y-auto">
-            {sortedAttempts.length === 0 ? (
-              <div className="p-16 flex flex-col items-center gap-4 text-center">
-                <Activity className="w-8 h-8 text-[#3f3f46]" />
-                <div>
-                  <p className="text-sm font-semibold text-white">No attempts yet</p>
-                  <p className="text-xs text-[#52525b] mt-1">Student quiz attempts will appear here in real time.</p>
-                </div>
-              </div>
-            ) : (
-              sortedAttempts.slice(0, 50).map(attempt => {
-                const student = students.find(s => s.id === attempt.studentId);
-                return (
-                  <div key={attempt.id}
-                    className="px-5 py-3 flex items-center justify-between gap-4 hover:bg-[#141414] transition-colors cursor-pointer"
-                    onClick={() => student && setSelectedStudent(student)}>
-                    <div className="flex items-center gap-3 min-w-0">
-                      {attempt.isCorrect
-                        ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                        : <XCircle     className="w-4 h-4 text-rose-400    shrink-0" />}
-                      <div className="min-w-0">
-                        <div className="text-xs font-semibold text-white truncate">
-                          {student?.name ?? attempt.studentId}
-                        </div>
-                        <div className="text-[11px] text-[#52525b] capitalize">
-                          {attempt.topic} · <span className="uppercase text-[#ededed]">{attempt.difficulty}</span> tier
-                        </div>
-                      </div>
+          <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[600px] overflow-y-auto">
+            {questions.map((q, idx) => {
+              const isCustom = q.id.startsWith('custom_') || q.id.startsWith('q_custom_');
+              return (
+                <div key={q.id || idx} className="p-4 rounded-xl bg-[#141414] border border-white/[0.06] space-y-2 hover:border-white/[0.12] transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const TopicIcon = TOPIC_META[q.topic]?.icon;
+                        return (
+                          <span className="text-xs font-mono font-bold text-[#3ecf8e] uppercase flex items-center gap-1">
+                            {TopicIcon && <TopicIcon className="w-3 h-3" />}
+                            <span>{q.topic}</span>
+                          </span>
+                        );
+                      })()}
+                      <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded border ${tierStyle(q.difficulty, false)}`}>
+                        {q.difficulty}
+                      </span>
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-xs font-mono text-white">{(attempt.responseTimeMs / 1000).toFixed(1)}s</div>
-                      <div className="text-[11px] text-[#52525b]">{relativeTime(attempt.timestamp)}</div>
+
+                    <div className="flex items-center gap-1.5">
+                      {isCustom ? (
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                          Teacher Created
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-[#52525b] font-mono">Seed</span>
+                      )}
+
+                      {/* Edit Question Button */}
+                      <button
+                        onClick={() => {
+                          setEditingQuestion(q);
+                          setIsAddQuestionOpen(true);
+                        }}
+                        title="Edit Question"
+                        className="p-1 rounded-lg text-[#9ca3af] hover:text-white hover:bg-white/[0.08] transition-colors"
+                      >
+                        <Pencil className="w-3.5 h-3.5 text-[#3ecf8e]" />
+                      </button>
+
+                      {/* Delete Question Button */}
+                      <button
+                        onClick={() => handleDeleteQuestion(q.id)}
+                        disabled={deletingQuestionId === q.id}
+                        title="Delete Question"
+                        className="p-1 rounded-lg text-[#9ca3af] hover:text-rose-400 hover:bg-rose-500/10 transition-colors disabled:opacity-40"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                      </button>
                     </div>
                   </div>
-                );
-              })
-            )}
+
+                  <p className="text-xs font-medium text-white leading-snug">{q.questionText}</p>
+
+                  <div className="grid grid-cols-2 gap-1.5 pt-1">
+                    {q.options.map((opt, oIdx) => (
+                      <div
+                        key={oIdx}
+                        className={`p-1.5 rounded-lg border text-[11px] font-mono flex items-center gap-1.5 ${
+                          oIdx === q.correctAnswerIndex
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 font-bold'
+                            : 'bg-[#1c1c1c] border-white/[0.04] text-[#9ca3af]'
+                        }`}
+                      >
+                        <span className="opacity-60">{String.fromCharCode(65 + oIdx)}.</span>
+                        <span className="truncate">{opt}</span>
+                        {oIdx === q.correctAnswerIndex && <span className="ml-auto text-emerald-400">✓</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
+
+      {/* ── ADD / EDIT QUESTION MODAL ── */}
+      <AddQuestionModal
+        isOpen={isAddQuestionOpen}
+        initialQuestion={editingQuestion}
+        onClose={() => {
+          setIsAddQuestionOpen(false);
+          setEditingQuestion(null);
+        }}
+        onQuestionAdded={(savedQ) => {
+          setQuestions(prev => {
+            const idx = prev.findIndex(item => item.id === savedQ.id);
+            if (idx >= 0) {
+              const copy = [...prev];
+              copy[idx] = savedQ;
+              return copy;
+            }
+            return [...prev, savedQ];
+          });
+        }}
+      />
 
       {/* ─────────────────────────── STUDENT MODAL ──────────────────────────── */}
       {selectedStudent && (() => {
         const sid          = selectedStudent.id;
         const studentAtts  = sortedAttempts.filter(a => a.studentId === sid);
         const acc          = getOverallAcc(sid);
-        const last         = getLastActive(sid);
         const badges       = new Set<string>();
         TOPICS.forEach(t => getProgress(sid, t)?.badges?.forEach(b => badges.add(b)));
 
         return (
-          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in"
+          <div className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in"
             onClick={e => { if (e.target === e.currentTarget) setSelectedStudent(null); }}>
             <div className="card-feature-light w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in">
 
@@ -699,7 +751,7 @@ export const TeacherDashboard: React.FC = () => {
                   </div>
                 </div>
                 <button onClick={() => setSelectedStudent(null)}
-                  className="p-2 rounded-lg text-[#52525b] hover:text-white hover:bg-white/[0.06] transition-colors">
+                  className="p-2 rounded-lg text-[#52525b] hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -725,20 +777,6 @@ export const TeacherDashboard: React.FC = () => {
                       </div>
                     );
                   })}
-                </div>
-
-                {/* Summary stats */}
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { label: 'Overall Acc', val: studentAtts.length > 0 ? `${acc}%` : '—', color: acc >= 70 ? 'text-emerald-400' : acc >= 40 ? 'text-amber-400' : 'text-rose-400' },
-                    { label: 'Total Attempts', val: studentAtts.length > 0 ? String(studentAtts.length) : '—', color: 'text-purple-400' },
-                    { label: 'Last Active', val: last > 0 ? relativeTime(last) : 'Never', color: 'text-[#9ca3af]' },
-                  ].map(stat => (
-                    <div key={stat.label} className="p-3 rounded-xl bg-[#1c1c1c] border border-white/[0.06] text-center space-y-1">
-                      <div className="text-[10px] text-[#52525b] uppercase tracking-wider">{stat.label}</div>
-                      <div className={`text-sm font-bold font-mono ${stat.color}`}>{stat.val}</div>
-                    </div>
-                  ))}
                 </div>
 
                 {/* Badges */}
@@ -793,18 +831,6 @@ export const TeacherDashboard: React.FC = () => {
                     </div>
                   )}
                 </div>
-              </div>
-
-              {/* Footer */}
-              <div className="border-t border-white/[0.06] px-5 py-3 bg-[#141414] flex items-center justify-between">
-                <span className="text-[11px] text-[#52525b] flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-[#3ecf8e]" />
-                  <SyncBadge />
-                </span>
-                <button onClick={() => setSelectedStudent(null)}
-                  className="btn-primary-green text-xs px-4 py-1.5 font-semibold">
-                  Close
-                </button>
               </div>
             </div>
           </div>

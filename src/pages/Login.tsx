@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Sparkles, Lock, Mail, UserCheck, KeyRound,
-  ShieldCheck, BookOpen, Wifi, AlertCircle
+  Lock, Mail, UserCheck, KeyRound, AlertCircle, GraduationCap, BookOpen
 } from 'lucide-react';
 import {
   signInWithEmailAndPassword,
@@ -29,7 +28,9 @@ function friendlyAuthError(err: any): string {
   if (code.includes('user-disabled'))                return 'This account has been disabled. Please contact support.';
   if (code.includes('too-many-requests'))            return 'Too many failed attempts. Please wait a moment and try again.';
   if (code.includes('network-request-failed'))       return 'No internet connection. Please check your network and try again.';
-  if (code.includes('operation-not-allowed'))        return 'Email/password sign-in is not enabled. Please contact the administrator.';
+  if (code.includes('operation-not-allowed') ||
+      err?.message?.includes('CONFIGURATION_NOT_FOUND'))
+                                                     return 'Email/password login is not enabled in this project. Please enable it in the Firebase Console → Authentication → Sign-in methods.';
   if (code.includes('requires-recent-login'))        return 'Please sign out and sign back in to continue.';
   // Show raw code as last resort so it is never a mystery
   return code ? `Sign-in failed (${code}). Please try again.` : 'Sign-in failed. Please try again.';
@@ -46,6 +47,19 @@ export const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState<string | null>(null);
+
+  // If already logged in, redirect away from login page immediately
+  useEffect(() => {
+    try {
+      const userRaw = localStorage.getItem('shiksha_user');
+      if (userRaw) {
+        const user = JSON.parse(userRaw);
+        if (user && user.id && user.role) {
+          navigate(user.role === 'teacher' ? '/teacher' : '/student', { replace: true });
+        }
+      }
+    } catch { /* ignore */ }
+  }, [navigate]);
 
   // Switch tab → clear fields & error
   const switchTab = (registering: boolean) => {
@@ -188,16 +202,12 @@ export const Login: React.FC = () => {
 
       {/* Hero */}
       <div className="text-center space-y-3 mb-8">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 text-[#3ecf8e] text-[11px] font-semibold uppercase tracking-wider">
-          <Sparkles className="w-3.5 h-3.5" />
-          Adaptive Learning · Offline-First PWA
-        </div>
         <h1 className="text-3xl md:text-[38px] font-medium tracking-tight text-white leading-tight">
           {isRegistering ? 'Join' : 'Sign in to'}<br />
           <span className="text-shimmer">ShikshaFlow</span>
         </h1>
         <p className="text-sm text-[#9ca3af] max-w-sm mx-auto">
-          Personalized adaptive difficulty scaling and real-time teacher analytics for Grade 6 Math.
+          Personalized adaptive difficulty scaling and real-time teacher analytics for Math.
         </p>
       </div>
 
@@ -245,7 +255,15 @@ export const Login: React.FC = () => {
                           : 'bg-[#3ecf8e]/10 text-[#3ecf8e] border-[#3ecf8e]/40'
                         : 'bg-[#141414] text-[#9ca3af] border-white/[0.06] hover:text-white'
                     }`}>
-                    {r === 'student' ? '🎒 Student' : '📋 Teacher'}
+                    {r === 'student' ? (
+                      <span className="flex items-center justify-center gap-1.5">
+                        <GraduationCap className="w-3.5 h-3.5" /> Student
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-1.5">
+                        <BookOpen className="w-3.5 h-3.5" /> Teacher
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -299,19 +317,6 @@ export const Login: React.FC = () => {
           </button>
 
         </form>
-
-        {/* Footer */}
-        <div className="border-t border-white/[0.06] px-6 py-3 bg-[#141414] flex items-center justify-between flex-wrap gap-2">
-          <span className="text-[11px] text-[#52525b] flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#3ecf8e]" /> Offline-First PWA
-          </span>
-          <span className="text-[11px] text-[#52525b] flex items-center gap-1.5">
-            <Wifi className="w-3.5 h-3.5 text-[#3ecf8e]" /> Firebase Realtime Sync
-          </span>
-          <span className="text-[11px] text-[#52525b] flex items-center gap-1.5">
-            <BookOpen className="w-3.5 h-3.5 text-[#3ecf8e]" /> 32 Grade 6 Questions
-          </span>
-        </div>
       </div>
     </div>
   );

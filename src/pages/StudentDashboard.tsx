@@ -2,18 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BookOpen, ArrowRight, Flame, Target, CheckCircle2,
-  XCircle, Clock, Lock, Sparkles, TrendingUp, Zap, Star, Bot
+  XCircle, Clock, Lock, Sparkles, TrendingUp, Zap, Star, Bot,
+  PieChart, Scale, Shapes, Hash
 } from 'lucide-react';
 import type { MathTopic, DifficultyTier, StudentProgress, Attempt } from '../types/schema';
 import { BADGE_DEFINITIONS } from '../services/badgeService';
 
 const TOPICS: MathTopic[] = ['fractions', 'ratios', 'geometry', 'decimals'];
 
-const TOPIC_META: Record<MathTopic, { emoji: string; label: string; desc: string }> = {
-  fractions: { emoji: '½', label: 'Fractions',  desc: 'Parts of a whole, equivalent fractions' },
-  ratios:    { emoji: '∶', label: 'Ratios',     desc: 'Comparing quantities, proportions' },
-  geometry:  { emoji: '△', label: 'Geometry',   desc: 'Shapes, angles, perimeter & area' },
-  decimals:  { emoji: '0.', label: 'Decimals',  desc: 'Decimal place value, operations' },
+const TOPIC_META: Record<MathTopic, { icon: any; label: string; desc: string }> = {
+  fractions: { icon: PieChart, label: 'Fractions',  desc: 'Parts of a whole, equivalent fractions' },
+  ratios:    { icon: Scale,    label: 'Ratios',     desc: 'Comparing quantities, proportions' },
+  geometry:  { icon: Shapes,   label: 'Geometry',   desc: 'Shapes, angles, perimeter & area' },
+  decimals:  { icon: Hash,     label: 'Decimals',  desc: 'Decimal place value, operations' },
 };
 
 const TIER_META: Record<DifficultyTier, { label: string; color: string; bar: string; glow: string }> = {
@@ -69,10 +70,7 @@ export const StudentDashboard: React.FC = () => {
   const today = new Date().toDateString();
   const todayAttempts = myAttempts.filter((a) => new Date(a.timestamp).toDateString() === today).length;
 
-  // Best tier across topics
-  const tierRank: Record<DifficultyTier, number> = { easy: 0, medium: 1, hard: 2 };
-  const topicsDone = TOPICS.filter((t) => getProgress(t));
-  void tierRank; void topicsDone; // used for potential future tier display
+
 
   const recentAttempts = myAttempts
     .sort((a, b) => b.timestamp - a.timestamp)
@@ -97,7 +95,7 @@ export const StudentDashboard: React.FC = () => {
         <div className="space-y-3 relative z-10">
           <div className="flex items-center gap-2">
             <span className="badge-emerald">Student Portal</span>
-            <span className="text-[11px] text-[#52525b]">Grade 6 · Adaptive Math</span>
+            <span className="text-[11px] text-[#52525b]">Adaptive Math</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-medium text-white tracking-tight">
             {greeting()}, <span className="text-shimmer">{user.name.split(' ')[0]}</span> 👋
@@ -138,30 +136,32 @@ export const StudentDashboard: React.FC = () => {
         </button>
       </div>
 
-      {/* ── AI QUIZ GENERATOR PRO FEATURE BANNER ── */}
-      <div className="card-feature-light p-5 bg-gradient-to-r from-purple-950/40 via-[#1c1c1c] to-purple-950/20 border-purple-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative overflow-hidden">
+      {/* ── AI QUIZ GENERATOR BANNER ── */}
+      <div className="card-feature-light p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative overflow-hidden">
+        {/* Decorative glow */}
+        <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full opacity-15 blur-3xl pointer-events-none"
+          style={{ background: 'radial-gradient(circle, #3ecf8e 0%, transparent 70%)' }} />
+
         <div className="flex items-start gap-3.5 relative z-10">
-          <div className="p-3 rounded-2xl bg-purple-500/20 border border-purple-500/30 text-purple-300 shrink-0">
-            <Bot className="w-6 h-6" />
+          <div className="p-2.5 rounded-xl bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 shrink-0">
+            <Bot className="w-5 h-5 text-[#3ecf8e]" />
           </div>
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold uppercase tracking-wider">
-                PRO FEATURE
-              </span>
-              <span className="text-xs font-bold text-white">AI Custom Quiz Generator</span>
+              <span className="badge-emerald">AI Feature</span>
+              <span className="text-sm font-semibold text-white">AI Custom Quiz Generator</span>
             </div>
-            <p className="text-xs text-[#9ca3af]">
-              Generate unlimited personalized practice quizzes on pizza fractions, sports ratios, shopping decimals, or custom prompts using AI!
+            <p className="text-xs text-[#9ca3af] max-w-md">
+              Generate personalized practice quizzes on any topic — pizza fractions, sports ratios, shopping decimals, or your own prompt.
             </p>
           </div>
         </div>
 
         <button
           onClick={() => navigate('/student/ai-quiz')}
-          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 text-white font-bold text-xs flex items-center gap-2 shrink-0 shadow-lg shadow-purple-500/25 transition-all group"
+          className="btn-primary-green px-5 py-2.5 text-xs font-semibold flex items-center gap-2 shrink-0 group"
         >
-          <Sparkles className="w-4 h-4" />
+          <Sparkles className="w-3.5 h-3.5" />
           Generate AI Quiz
           <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
         </button>
@@ -188,9 +188,14 @@ export const StudentDashboard: React.FC = () => {
               >
                 {/* Topic header */}
                 <div className="flex items-start justify-between">
-                  <div className="w-10 h-10 rounded-xl bg-[#1c1c1c] border border-white/[0.06] flex items-center justify-center font-mono text-lg font-bold text-white group-hover:border-[#3ecf8e]/30 transition-colors">
-                    {TOPIC_META[topic].emoji}
-                  </div>
+                  {(() => {
+                    const TopicIcon = TOPIC_META[topic].icon;
+                    return (
+                      <div className="w-10 h-10 rounded-xl bg-[#1c1c1c] border border-white/[0.06] flex items-center justify-center text-[#3ecf8e] group-hover:border-[#3ecf8e]/30 transition-colors">
+                        <TopicIcon className="w-5 h-5" />
+                      </div>
+                    );
+                  })()}
                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${meta.color}`}>
                     {meta.label}
                   </span>

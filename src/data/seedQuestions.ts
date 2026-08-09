@@ -4,7 +4,7 @@ export const SEED_QUESTIONS: Question[] = [
   // --- FRACTIONS ---
   {
     id: 'frac-e1',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'fractions',
     difficulty: 'easy',
     questionText: 'What fraction of the circle is shaded if 1 out of 4 equal parts is shaded?',
@@ -17,7 +17,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'frac-e2',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'fractions',
     difficulty: 'easy',
     questionText: 'Simplify the fraction 2/4 to its simplest form.',
@@ -30,7 +30,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'frac-e3',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'fractions',
     difficulty: 'easy',
     questionText: 'What is 1/5 + 2/5?',
@@ -43,7 +43,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'frac-m1',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'fractions',
     difficulty: 'medium',
     questionText: 'Solve: 1/3 + 1/6.',
@@ -56,7 +56,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'frac-m2',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'fractions',
     difficulty: 'medium',
     questionText: 'Subtract: 3/4 - 1/2.',
@@ -69,7 +69,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'frac-m3',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'fractions',
     difficulty: 'medium',
     questionText: 'Convert the improper fraction 7/3 into a mixed fraction.',
@@ -82,7 +82,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'frac-h1',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'fractions',
     difficulty: 'hard',
     questionText: 'Riya ate 2/5 of a pizza and Rahul ate 1/3 of the same pizza. What fraction of the pizza was eaten in total?',
@@ -95,7 +95,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'frac-h2',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'fractions',
     difficulty: 'hard',
     questionText: 'What is (3/4) × (2/5) in simplest form?',
@@ -110,7 +110,7 @@ export const SEED_QUESTIONS: Question[] = [
   // --- RATIOS ---
   {
     id: 'rat-e1',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'ratios',
     difficulty: 'easy',
     questionText: 'In a class there are 10 boys and 15 girls. What is the ratio of boys to girls in simplest form?',
@@ -123,7 +123,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'rat-e2',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'ratios',
     difficulty: 'easy',
     questionText: 'If 3 pencils cost ₹15, what is the cost of 1 pencil?',
@@ -136,7 +136,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'rat-e3',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'ratios',
     difficulty: 'easy',
     questionText: 'Express the ratio 4:8 in lowest terms.',
@@ -149,7 +149,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'rat-m1',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'ratios',
     difficulty: 'medium',
     questionText: 'If the ratio of red balls to blue balls in a bag is 3:4 and there are 12 red balls, how many blue balls are there?',
@@ -162,7 +162,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'rat-m2',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'ratios',
     difficulty: 'medium',
     questionText: 'A car covers 120 km in 2 hours. What is its speed in km/h?',
@@ -175,7 +175,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'rat-m3',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'ratios',
     difficulty: 'medium',
     questionText: 'Divide ₹100 between Amit and Sumit in the ratio 2:3. How much money does Sumit get?',
@@ -188,7 +188,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'rat-h1',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'ratios',
     difficulty: 'hard',
     questionText: 'A recipe uses flour and sugar in the ratio 5:2. If 250g of flour is used, how much sugar is needed?',
@@ -201,7 +201,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'rat-h2',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'ratios',
     difficulty: 'hard',
     questionText: 'Are the ratios 2:3 and 8:12 in proportion?',
@@ -216,7 +216,7 @@ export const SEED_QUESTIONS: Question[] = [
   // --- GEOMETRY ---
   {
     id: 'geo-e1',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'geometry',
     difficulty: 'easy',
     questionText: 'What is the perimeter of a square with side length 5 cm?',
@@ -229,7 +229,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'geo-e2',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'geometry',
     difficulty: 'easy',
     questionText: 'How many sides does a hexagon have?',
@@ -242,7 +242,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'geo-e3',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'geometry',
     difficulty: 'easy',
     questionText: 'An angle measuring exactly 90 degrees is called a:',
@@ -255,7 +255,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'geo-m1',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'geometry',
     difficulty: 'medium',
     questionText: 'Find the area of a rectangle with length 8 cm and breadth 5 cm.',
@@ -268,7 +268,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'geo-m2',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'geometry',
     difficulty: 'medium',
     questionText: 'The sum of all three interior angles in any triangle is always equal to:',
@@ -281,7 +281,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'geo-m3',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'geometry',
     difficulty: 'medium',
     questionText: 'If two angles of a triangle are 50° and 60°, what is the measure of the third angle?',
@@ -294,7 +294,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'geo-h1',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'geometry',
     difficulty: 'hard',
     questionText: 'Find the area of a square whose perimeter is 24 cm.',
@@ -307,7 +307,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'geo-h2',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'geometry',
     difficulty: 'hard',
     questionText: 'If the radius of a circle is 7 cm, what is its diameter?',
@@ -322,7 +322,7 @@ export const SEED_QUESTIONS: Question[] = [
   // --- DECIMALS ---
   {
     id: 'dec-e1',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'decimals',
     difficulty: 'easy',
     questionText: 'What is 3.5 + 2.4?',
@@ -335,7 +335,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'dec-e2',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'decimals',
     difficulty: 'easy',
     questionText: 'Convert 1/2 into decimal form.',
@@ -348,7 +348,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'dec-e3',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'decimals',
     difficulty: 'easy',
     questionText: 'Which number is larger: 0.7 or 0.07?',
@@ -361,7 +361,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'dec-m1',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'decimals',
     difficulty: 'medium',
     questionText: 'Subtract: 10.5 - 3.75.',
@@ -374,7 +374,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'dec-m2',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'decimals',
     difficulty: 'medium',
     questionText: 'Multiply: 0.4 × 0.2.',
@@ -387,7 +387,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'dec-m3',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'decimals',
     difficulty: 'medium',
     questionText: 'Convert 0.75 into a fraction in lowest terms.',
@@ -400,7 +400,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'dec-h1',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'decimals',
     difficulty: 'hard',
     questionText: 'Divide 4.5 by 0.5.',
@@ -413,7 +413,7 @@ export const SEED_QUESTIONS: Question[] = [
   },
   {
     id: 'dec-h2',
-    subject: 'Grade 6 Math',
+    subject: 'Mathematics',
     topic: 'decimals',
     difficulty: 'hard',
     questionText: 'A pen costs ₹12.45 and a notebook costs ₹25.80. What is the total cost of 2 pens and 1 notebook?',

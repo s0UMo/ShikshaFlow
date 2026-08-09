@@ -14,13 +14,14 @@ export type MathTopic = 'fractions' | 'ratios' | 'geometry' | 'decimals';
 
 export interface Question {
   id: string;
-  subject: string; // e.g. 'Grade 6 Math'
+  subject: string; // e.g. 'Mathematics'
   topic: MathTopic;
   difficulty: DifficultyTier;
   questionText: string;
   questionTextHindi: string;     // Hindi question for display
   questionTextHindiAudio?: string; // Hinglish phonetic fallback for English TTS engines
   options: string[];
+  optionsHindi?: string[];
   correctAnswerIndex: number;
   explanation: string;
   explanationHindi: string;
